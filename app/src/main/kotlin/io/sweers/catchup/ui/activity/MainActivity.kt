@@ -102,7 +102,7 @@ class MainActivity : BaseActivity() {
 //      ImgurModule::class
       ]
   )
-  abstract class Module {
+  abstract class ServiceIntegrationModule {
     @dagger.Module
     companion object {
       @TextViewPool
@@ -117,21 +117,20 @@ class MainActivity : BaseActivity() {
       @PerActivity
       fun provideVisualViewPool() = RecycledViewPool()
 
-      // TODO Can we make this just a qualified thing?
       @Provides
       @PerActivity
       @JvmStatic
+      @FinalServices
       fun provideFinalServices(serviceDao: ServiceDao,
-          services: Map<String, @JvmSuppressWildcards Provider<Service>>): Map<String, Provider<StorageBackedService>> {
+          services: Map<String, @JvmSuppressWildcards Provider<Service>>): Map<String, Provider<Service>> {
         return services.mapValues { (_, value) ->
-          Provider<StorageBackedService> {
+          Provider<Service> {
             StorageBackedService(serviceDao, value.get())
           }
         }
       }
     }
 
-    // TODO Eventually wrap elements from this into a storage-backed set
     @Multibinds
     @PerActivity
     abstract fun services(): Map<String, Service>
@@ -155,3 +154,6 @@ annotation class TextViewPool
 
 @Qualifier
 annotation class VisualViewPool
+
+@Qualifier
+annotation class FinalServices
