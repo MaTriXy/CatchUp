@@ -52,6 +52,7 @@ import dagger.android.AndroidInjector
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.sweers.catchup.GlideApp
 import io.sweers.catchup.R
+import io.sweers.catchup.analytics.trace
 import io.sweers.catchup.injection.ConductorInjection
 import io.sweers.catchup.injection.scopes.PerController
 import io.sweers.catchup.service.api.CatchUpItem
@@ -70,7 +71,6 @@ import io.sweers.catchup.ui.base.DataLoadingSubject
 import io.sweers.catchup.ui.base.DataLoadingSubject.DataLoadingCallbacks
 import io.sweers.catchup.ui.controllers.service.LoadResult.DiffResultData
 import io.sweers.catchup.ui.controllers.service.LoadResult.NewData
-import io.sweers.catchup.util.Iterables
 import io.sweers.catchup.util.applyOn
 import io.sweers.catchup.util.d
 import io.sweers.catchup.util.e
@@ -111,7 +111,7 @@ abstract class DisplayableItemAdapter<T : DisplayableItem, VH : ViewHolder>(
     }
   }
 
-  fun getItems() = data.toList()
+  fun getItems(): List<DisplayableItem> = data
 
   fun getItemColumnSpan(position: Int) = when (getItemViewType(position)) {
     TYPE_LOADING_MORE -> columnCount
@@ -198,7 +198,7 @@ class ServiceController : ButterKnifeController,
       context: Context): DisplayableItemAdapter<out DisplayableItem, ViewHolder> {
     if (service.meta().isVisual) {
       val adapter = ImageAdapter(context) { item, holder ->
-        service.bindItemView(item.delegate, holder)
+        service.bindItemView(item.realItem(), holder)
       }
       val preloader = RecyclerViewPreloader<ImageItem>(GlideApp.with(activity),
           adapter,
@@ -318,8 +318,6 @@ class ServiceController : ButterKnifeController,
       recyclerView.post { adapter.dataStartedLoading() }
       recyclerView.itemAnimator = defaultItemAnimator
     }
-    val trace = FirebasePerformance.getInstance().newTrace("Data load - ${service.meta().id}")
-    val timer = AtomicLong()
     val multiPage = pageToRestoreTo != null
     if (multiPage) {
       recyclerView.itemAnimator = defaultItemAnimator
@@ -348,7 +346,17 @@ class ServiceController : ButterKnifeController,
         .let {
           // If these are images, wrap in our visual item
           if (service.meta().isVisual) {
-            it.map { ImageItem(it) }
+            it.map { catchupItem ->
+              // If any already exist, we don't need to re-fade them in
+              ImageItem(catchupItem)
+                  .apply {
+                    adapter.getItems()
+                        .find { it.realItem().id == catchupItem.id }
+                        ?.let {
+                          hasFadedIn = (it as ImageItem).hasFadedIn
+                        }
+                  }
+            }
           } else it
         }
         .cast(DisplayableItem::class.java)
@@ -369,18 +377,7 @@ class ServiceController : ButterKnifeController,
           swipeRefreshLayout.isEnabled = true
           swipeRefreshLayout.isRefreshing = false
         }
-        .doOnSubscribe {
-          trace.start()
-          timer.set(System.currentTimeMillis())
-        }
-        .doFinally {
-          trace.stop()
-          d { "Data load - ${service.meta().id} - took: ${System.currentTimeMillis() - timer.get()}ms" }
-          dataLoading = false
-          recyclerView.post {
-            adapter.dataFinishedLoading()
-          }
-        }
+        .trace("Data load - ${service.meta().id}")
         .doOnComplete { moreDataAvailable = false }
         .autoDisposeWith(this)
         .subscribe({ loadResult ->
@@ -489,8 +486,7 @@ class ServiceController : ButterKnifeController,
       if (getItemViewType(position) == TYPE_LOADING_MORE) {
         return RecyclerView.NO_ID
       }
-      return Iterables.get(data, position)
-          .stableId()
+      return data[position].stableId()
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
@@ -511,7 +507,7 @@ class ServiceController : ButterKnifeController,
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
       when (getItemViewType(position)) {
         TYPE_ITEM -> try {
-          bindDelegate(Iterables.get(data, position), holder as CatchUpItemViewHolder)
+          bindDelegate(data[position], holder as CatchUpItemViewHolder)
         } catch (error: Exception) {
           e(error) { "Bind delegate failure!" }
         }

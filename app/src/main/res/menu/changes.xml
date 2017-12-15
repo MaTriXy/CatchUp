@@ -20,10 +20,9 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     >
   <item
-      android:id="@+id/settings"
-      android:icon="@drawable/ic_settings"
-      android:title="Settings"
-      android:orderInCategory="99"
+      android:id="@+id/changes"
+      android:icon="@drawable/ic_present"
+      android:title="@string/changes"
       app:iconTint="?android:textColorPrimary"
       app:showAsAction="always"
       />
