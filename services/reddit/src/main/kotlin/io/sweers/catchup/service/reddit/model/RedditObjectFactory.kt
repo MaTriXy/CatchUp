@@ -22,81 +22,54 @@ import com.squareup.moshi.JsonReader
 import com.squareup.moshi.JsonWriter
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
-import io.sweers.catchup.service.reddit.model.RedditType.LISTING
-import io.sweers.catchup.service.reddit.model.RedditType.MORE
-import io.sweers.catchup.service.reddit.model.RedditType.T1
-import io.sweers.catchup.service.reddit.model.RedditType.T3
-import java.io.IOException
-import java.lang.ref.WeakReference
 import java.lang.reflect.Type
 
 internal class RedditObjectFactory : JsonAdapter.Factory {
 
-  override fun create(type: Type, annotations: Set<Annotation>, moshi: Moshi): JsonAdapter<*>? {
-    val clazz = Types.getRawType(type)
-    if (RedditObject::class.java != clazz) {
+  override fun create(
+      type: Type, annotations: Set<Annotation>, moshi: Moshi): JsonAdapter<RedditObject>? {
+    if (!Types.getRawType(type).isAssignableFrom(RedditObject::class.java)) {
       // Not one of our oddball polymorphic types, ignore it.
       return null
     }
-    return object : JsonAdapter<Any>() {
-      @Throws(IOException::class)
-      override fun fromJson(reader: JsonReader): Any? {
+    return object : JsonAdapter<RedditObject>() {
+
+      override fun fromJson(reader: JsonReader): RedditObject? {
         val jsonValue = reader.readJsonValue()
-        if (jsonValue is String) {
-          // There are no replies.
-          return jsonValue // Or null, or something interesting to you.
+        if (jsonValue is String || jsonValue == null) {
+          // It's null or there are no replies, just return null
+          return null
         }
 
         @Suppress("UNCHECKED_CAST")
-        val value = jsonValue as Map<String, Any>?
-        val redditType = RedditType.valueOf((value!!["kind"] as String).toUpperCase())
+        val value = jsonValue as Map<String, Any>
+        val redditType = RedditType.valueOf((value["kind"] as String).toUpperCase())
         val redditObject = value["data"]
-        val adapter = moshi.adapter(redditType.derivedClass)
-        return adapter?.fromJsonValue(redditObject) ?: throw JsonDataException()
+        return with(moshi.adapter(redditType.derivedClass)) {
+          fromJsonValue(redditObject)
+        } ?: throw JsonDataException()
       }
 
-      @Throws(IOException::class)
-      override fun toJson(writer: JsonWriter, value: Any?) {
+      override fun toJson(writer: JsonWriter, value: RedditObject?) {
         when (value) {
-          is RedditComment -> {
-            writer.name("kind")
-            moshi.adapter(RedditType::class.java).toJson(writer,
-                T1)
-            writer.name("data")
-            moshi.adapter(RedditComment::class.java).toJson(writer, value)
-          }
-          is RedditLink -> {
-            writer.name("kind")
-            moshi.adapter(RedditType::class.java).toJson(writer,
-                T3)
-            writer.name("data")
-            moshi.adapter(RedditLink::class.java).toJson(writer, value)
-          }
-          is RedditListing -> {
-            writer.name("kind")
-            moshi.adapter(RedditType::class.java).toJson(writer,
-                LISTING)
-            writer.name("data")
-            moshi.adapter(RedditListing::class.java).toJson(writer, value)
-          }
-          is RedditMore -> {
-            writer.name("kind")
-            moshi.adapter(RedditType::class.java).toJson(writer,
-                MORE)
-            writer.name("data")
-            moshi.adapter(RedditMore::class.java).toJson(writer, value)
-          }
-          else -> TODO()
+          is RedditComment -> writer.write(value)
+          is RedditLink -> writer.write(value)
+          is RedditListing -> writer.write(value)
         }
+      }
+
+      // TODO still duplicating some here, but reified types DRY this up nicely
+      private inline fun <reified T : RedditObject> JsonWriter.write(value: T?) {
+        name("kind")
+        moshi.adapter(RedditType::class.java)
+            .toJson(this, RedditType.values().find { it.derivedClass == T::class.java })
+        name("data")
+        moshi.adapter(T::class.java).toJson(this, value)
       }
     }
   }
 
   companion object {
-    private var instance: WeakReference<RedditObjectFactory>? = null
-
-    fun getInstance(): RedditObjectFactory {
-      return instance?.get() ?: RedditObjectFactory().also { instance = WeakReference(it) }
-    }
+    val INSTANCE: RedditObjectFactory by lazy { RedditObjectFactory() }
   }
 }

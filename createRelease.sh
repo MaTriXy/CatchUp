@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -e
 
@@ -62,10 +62,13 @@ usage() {
 
 # Executes a command if DRY_RUN is not true
 function execIfNotDry {
-  if [ "$DRY_RUN" = false ]
+  if [ "$DRY_RUN" = true  ]
     then
-      $@
+      echo "$*"
+      return 0
   fi
+
+  eval "$@"
 }
 
 # If we don't have these two envs, bomb out early because this won't work
@@ -114,10 +117,24 @@ if [ "$UPDATE_CHANGELOG" = true ]
   then
     echo "Cutting changelog via gradle..."
     execIfNotDry execGradle cutChangelog -PincludeChangelog
-    VERSION_NAME=`git describe --tags`
-    echo "Committing new tags for changelog update"
-    execIfNotDry git commit -m "Prepare for release ${VERSION_NAME}." -- CHANGELOG.md "${WORKING_DIR}/app/src/main/play/en-US/whatsnew"
-    execIfNotDry git tag -a ${VERSION_NAME} -m "Version ${VERSION_NAME}."
+    VERSION_NAME=`git describe --abbrev=0 --tags`
+    # If we didn't update a version here, use the described tag
+    if [ -z ${VERSION_UPDATE_TYPE} ]
+      then
+        VERSION_NAME=`git describe --tags`
+    fi
+    echo "Committing new tags for changelog update with version ${VERSION_NAME}"
+    # Not using execIfNotDry because args get screwed up and my bash is not good
+    if [ "$DRY_RUN" = false  ]
+      then
+        git commit -m "Prepare for release ${VERSION_NAME}." -- CHANGELOG.md app/src/main/play/en-US/whatsnew
+    fi
+    # Only cut a tag if we didn't update a version above
+    if [ -z ${VERSION_UPDATE_TYPE} ]
+      then
+        log "Cutting tag during changelog"
+        execIfNotDry git tag -a ${VERSION_NAME} -m "Version ${VERSION_NAME}."
+    fi
 fi
 
 echo "Decrypting keys"
@@ -128,4 +145,8 @@ execIfNotDry openssl aes-256-cbc -d -in signing/play-account.aes -out signing/pl
 log "Keys decrypted"
 
 echo "Publishing"
-execIfNotDry gradleExec clean publishApkRelease --no-daemon -PincludeChangelog
+execIfNotDry execGradle clean publishApkRelease --no-daemon -PincludeChangelog -PenableFirebasePerf
+
+echo "Finishing up"
+execIfNotDry git push
+execIfNotDry git push --tags

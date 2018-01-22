@@ -23,6 +23,7 @@ import com.google.firebase.database.ValueEventListener
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
+import dagger.Reusable
 import dagger.multibindings.IntoMap
 import io.reactivex.Maybe
 import io.reactivex.Observable
@@ -48,6 +49,8 @@ import javax.inject.Qualifier
 @Qualifier
 private annotation class InternalApi
 
+private const val SERVICE_KEY = "hn"
+
 internal class HackerNewsService @Inject constructor(
     @InternalApi private val serviceMeta: ServiceMeta,
     private val database: dagger.Lazy<FirebaseDatabase>,
@@ -59,31 +62,30 @@ internal class HackerNewsService @Inject constructor(
   override fun fetchPage(request: DataRequest): Maybe<DataResult> {
     val page = request.pageId.toInt()
     val itemsPerPage = 25 // TODO Pref this
-    return Single.create { emitter: SingleEmitter<DataSnapshot> ->
-      val listener = object : ValueEventListener {
-        override fun onDataChange(dataSnapshot: DataSnapshot) {
-          emitter.onSuccess(dataSnapshot)
-        }
+    return Single
+        .create { emitter: SingleEmitter<DataSnapshot> ->
+          val listener = object : ValueEventListener {
+            override fun onDataChange(dataSnapshot: DataSnapshot) {
+              emitter.onSuccess(dataSnapshot)
+            }
 
-        override fun onCancelled(firebaseError: DatabaseError) {
-          d { "${firebaseError.code}" }
-          emitter.onError(firebaseError.toException())
-        }
-      }
+            override fun onCancelled(firebaseError: DatabaseError) {
+              d { "${firebaseError.code}" }
+              emitter.onError(firebaseError.toException())
+            }
+          }
 
-      val ref = database.get()
-          .getReference("v0/topstories")
-      emitter.setCancellable { ref.removeEventListener(listener) }
-      ref.addValueEventListener(listener)
-    }
+          val ref = database.get().getReference("v0/topstories")
+          emitter.setCancellable { ref.removeEventListener(listener) }
+          ref.addValueEventListener(listener)
+        }
         .flattenAsObservable { it.children }
         .skip(((page + 1) * itemsPerPage - itemsPerPage).toLong())
         .take(itemsPerPage.toLong())
         .map { d -> d.value as Long }
         .concatMapEager { id ->
           Observable.create<DataSnapshot> { emitter ->
-            val ref = database.get()
-                .getReference("v0/item/" + id)
+            val ref = database.get().getReference("v0/item/$id")
             val listener = object : ValueEventListener {
               override fun onDataChange(dataSnapshot: DataSnapshot) {
                 emitter.onNext(dataSnapshot)
@@ -106,7 +108,7 @@ internal class HackerNewsService @Inject constructor(
           with(it) {
             CatchUpItem(
                 id = id(),
-                title = title() ?: "Untitled",
+                title = title(),
                 score = "+" to score(),
                 timestamp = time(),
                 author = by(),
@@ -120,12 +122,7 @@ internal class HackerNewsService @Inject constructor(
           }
         }
         .toList()
-        .map {
-          // HN will eventually run out of items. Ideally we'd want to push this up into something
-          // that maybe tries the next two pages and if both are empty, give up and don't infinitely
-          // load.
-          DataResult(it, if (it.isEmpty()) null else (page + 1).toString())
-        }
+        .map { DataResult(it, if (it.isEmpty()) null else (page + 1).toString()) }
         .toMaybe()
         .onErrorResumeNext { t: Throwable ->
           if (BuildConfig.DEBUG && t is IllegalArgumentException) {
@@ -142,25 +139,19 @@ internal class HackerNewsService @Inject constructor(
 }
 
 @Module
-abstract class HackerNewsModule {
+abstract class HackerNewsMetaModule {
 
   @IntoMap
   @ServiceMetaKey(SERVICE_KEY)
   @Binds
   internal abstract fun hackerNewsServiceMeta(@InternalApi meta: ServiceMeta): ServiceMeta
 
-  @IntoMap
-  @ServiceKey(SERVICE_KEY)
-  @Binds
-  internal abstract fun hackerNewsService(hackerNewsService: HackerNewsService): Service
-
   @Module
   companion object {
 
-    private const val SERVICE_KEY = "hn"
-
     @InternalApi
     @Provides
+    @Reusable
     @JvmStatic
     internal fun provideMediumServiceMeta() = ServiceMeta(
         SERVICE_KEY,
@@ -170,11 +161,23 @@ abstract class HackerNewsModule {
         pagesAreNumeric = true,
         firstPageKey = "0"
     )
+  }
+}
+
+@Module(includes = [HackerNewsMetaModule::class])
+abstract class HackerNewsModule {
+
+  @IntoMap
+  @ServiceKey(SERVICE_KEY)
+  @Binds
+  internal abstract fun hackerNewsService(hackerNewsService: HackerNewsService): Service
+
+  @Module
+  companion object {
 
     @Provides
     @JvmStatic
     internal fun provideDataBase() =
         FirebaseDatabase.getInstance("https://hacker-news.firebaseio.com/")
-
   }
 }

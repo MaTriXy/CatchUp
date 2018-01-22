@@ -21,6 +21,7 @@ import dagger.Binds
 import dagger.Lazy
 import dagger.Module
 import dagger.Provides
+import dagger.Reusable
 import dagger.multibindings.IntoMap
 import io.reactivex.Maybe
 import io.sweers.catchup.service.api.CatchUpItem
@@ -47,6 +48,8 @@ import javax.inject.Qualifier
 
 @Qualifier
 private annotation class InternalApi
+
+private const val SERVICE_KEY = "reddit"
 
 internal class RedditService @Inject constructor(
     @InternalApi private val serviceMeta: ServiceMeta,
@@ -86,12 +89,32 @@ internal class RedditService @Inject constructor(
 }
 
 @Module
-abstract class RedditModule {
+abstract class RedditMetaModule {
 
   @IntoMap
   @ServiceMetaKey(SERVICE_KEY)
   @Binds
   internal abstract fun redditServiceMeta(@InternalApi meta: ServiceMeta): ServiceMeta
+
+  @Module
+  companion object {
+
+    @InternalApi
+    @Provides
+    @Reusable
+    @JvmStatic
+    internal fun provideRedditServiceMeta() = ServiceMeta(
+        SERVICE_KEY,
+        R.string.reddit,
+        R.color.redditAccent,
+        R.drawable.logo_reddit,
+        firstPageKey = ""
+    )
+  }
+}
+
+@Module(includes = [RedditMetaModule::class])
+abstract class RedditModule {
 
   @IntoMap
   @ServiceKey(SERVICE_KEY)
@@ -101,26 +124,13 @@ abstract class RedditModule {
   @Module
   companion object {
 
-    private const val SERVICE_KEY = "reddit"
-
-    @InternalApi
-    @Provides
-    @JvmStatic
-    internal fun provideRedditServiceMeta() = ServiceMeta(
-        SERVICE_KEY,
-        R.string.reddit,
-        R.color.redditAccent,
-        R.drawable.logo_reddit,
-        firstPageKey = ""
-    )
-
     @InternalApi
     @Provides
     @JvmStatic
     internal fun provideMoshi(upstreamMoshi: Moshi): Moshi {
       return upstreamMoshi.newBuilder()
           .add(RedditAdapterFactory.create())
-          .add(RedditObjectFactory.getInstance())
+          .add(RedditObjectFactory.INSTANCE)
           .add(Instant::class.java, EpochInstantJsonAdapter())
           .build()
     }
@@ -138,6 +148,7 @@ abstract class RedditModule {
                 .header("User-Agent", "CatchUp app by /u/pandanomic")
                 .url(url.newBuilder()
                     .encodedPath(url.encodedPath() + ".json")
+                    .addQueryParameter("raw_json", "1") // So tokens aren't escaped
                     .build())
                 .build()
             chain.proceed(request)

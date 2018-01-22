@@ -17,15 +17,19 @@
 package io.sweers.catchup.service.github
 
 import com.apollographql.apollo.ApolloClient
+import com.apollographql.apollo.api.Input
 import com.apollographql.apollo.api.cache.http.HttpCachePolicy
 import com.apollographql.apollo.exception.ApolloException
 import com.apollographql.apollo.rx2.Rx2Apollo
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
+import dagger.Reusable
 import dagger.multibindings.IntoMap
 import io.reactivex.Maybe
 import io.reactivex.Observable
+import io.sweers.catchup.gemoji.EmojiMarkdownConverter
+import io.sweers.catchup.gemoji.replaceMarkdownEmojis
 import io.sweers.catchup.service.api.CatchUpItem
 import io.sweers.catchup.service.api.DataRequest
 import io.sweers.catchup.service.api.DataResult
@@ -35,6 +39,7 @@ import io.sweers.catchup.service.api.ServiceKey
 import io.sweers.catchup.service.api.ServiceMeta
 import io.sweers.catchup.service.api.ServiceMetaKey
 import io.sweers.catchup.service.api.TextService
+import io.sweers.catchup.service.github.GitHubSearchQuery.AsRepository
 import io.sweers.catchup.service.github.model.SearchQuery
 import io.sweers.catchup.service.github.model.TrendingTimespan
 import io.sweers.catchup.service.github.type.LanguageOrder
@@ -47,9 +52,12 @@ import javax.inject.Qualifier
 @Qualifier
 private annotation class InternalApi
 
+private const val SERVICE_KEY = "github"
+
 internal class GitHubService @Inject constructor(
     @InternalApi private val serviceMeta: ServiceMeta,
     private val apolloClient: ApolloClient,
+    private val emojiMarkdownConverter: EmojiMarkdownConverter,
     private val linkHandler: LinkHandler)
   : TextService {
 
@@ -68,7 +76,7 @@ internal class GitHubService @Inject constructor(
             .direction(OrderDirection.DESC)
             .field(LanguageOrderField.SIZE)
             .build(),
-        request.pageId.nullIfBlank()))
+        Input.fromNullable(request.pageId.nullIfBlank())))
         .httpCachePolicy(HttpCachePolicy.NETWORK_ONLY)
 
     return Rx2Apollo.from(searchQuery)
@@ -81,14 +89,18 @@ internal class GitHubService @Inject constructor(
         .map { it.data()!! }
         .flatMap { data ->
           Observable.fromIterable(data.search().nodes().orEmpty())
-              .map { it.asRepository()!! }
+              .cast(AsRepository::class.java)
               .map {
                 with(it) {
+                  val description = description()
+                      ?.let { " — ${replaceMarkdownEmojis(it, emojiMarkdownConverter)}" }
+                      .orEmpty()
+
                   CatchUpItem(
                       id = id().hashCode().toLong(),
                       hideComments = true,
-                      title = "${name()}${description()?.let { " — $it" } ?: ""}",
-                      score = "★" to stargazers().totalCount(),
+                      title = "${name()}$description",
+                      score = "★" to stargazers().totalCount().toInt(),
                       timestamp = createdAt(),
                       author = owner().login(),
                       tag = languages()?.nodes()?.firstOrNull()?.name(),
@@ -98,8 +110,13 @@ internal class GitHubService @Inject constructor(
                 }
               }
               .toList()
-//              .map { DataResult(it, data.search().pageInfo().endCursor()) } // TODO This should make paging work, but gets no results
-              .map { DataResult(it, null) }
+              .map {
+                if (data.search().pageInfo().hasNextPage()) {
+                  DataResult(it, data.search().pageInfo().endCursor())
+                } else {
+                  DataResult(it, null)
+                }
+              }
         }
         .toMaybe()
   }
@@ -108,25 +125,19 @@ internal class GitHubService @Inject constructor(
 }
 
 @Module
-abstract class GitHubModule {
+abstract class GitHubMetaModule {
 
   @IntoMap
   @ServiceMetaKey(SERVICE_KEY)
   @Binds
   internal abstract fun githubServiceMeta(@InternalApi meta: ServiceMeta): ServiceMeta
 
-  @IntoMap
-  @ServiceKey(SERVICE_KEY)
-  @Binds
-  internal abstract fun githubService(githubService: GitHubService): Service
-
   @Module
   companion object {
 
-    private const val SERVICE_KEY = "github"
-
     @InternalApi
     @Provides
+    @Reusable
     @JvmStatic
     internal fun provideGitHubServiceMeta() = ServiceMeta(
         SERVICE_KEY,
@@ -136,4 +147,14 @@ abstract class GitHubModule {
         firstPageKey = ""
     )
   }
+}
+
+@Module(includes = [GitHubMetaModule::class])
+abstract class GitHubModule {
+
+  @IntoMap
+  @ServiceKey(SERVICE_KEY)
+  @Binds
+  internal abstract fun githubService(githubService: GitHubService): Service
+
 }

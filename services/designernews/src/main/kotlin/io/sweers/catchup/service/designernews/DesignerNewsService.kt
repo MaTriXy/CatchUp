@@ -22,10 +22,12 @@ import dagger.Binds
 import dagger.Lazy
 import dagger.Module
 import dagger.Provides
+import dagger.Reusable
 import dagger.multibindings.IntoMap
 import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.functions.BiFunction
+import io.sweers.catchup.service.api.CatchUpItem
 import io.sweers.catchup.service.api.DataRequest
 import io.sweers.catchup.service.api.DataResult
 import io.sweers.catchup.service.api.LinkHandler
@@ -49,6 +51,8 @@ import javax.inject.Qualifier
 @Qualifier
 private annotation class InternalApi
 
+private const val SERVICE_KEY = "dn"
+
 internal class DesignerNewsService @Inject constructor(
     @InternalApi private val serviceMeta: ServiceMeta,
     private val api: DesignerNewsApi,
@@ -62,7 +66,6 @@ internal class DesignerNewsService @Inject constructor(
     return api.getTopStories(page)
         .flatMapObservable { stories ->
           Observable.zip(
-              // TODO This needs to update to the new /users endpoint behavior, which will only give a best effort result and not necessarily all
               Observable.fromIterable(stories),
               Observable.fromIterable(stories)
                   .map { it.links().user() }
@@ -77,8 +80,8 @@ internal class DesignerNewsService @Inject constructor(
         }
         .map { (story, user) ->
           with(story) {
-            io.sweers.catchup.service.api.CatchUpItem(
-                id = java.lang.Long.parseLong(id()),
+            CatchUpItem(
+                id = id().toLong(),
                 title = title(),
                 score = "▲" to voteCount(),
                 timestamp = createdAt(),
@@ -102,25 +105,19 @@ internal class DesignerNewsService @Inject constructor(
 }
 
 @Module
-abstract class DesignerNewsModule {
+abstract class DesignerNewsMetaModule {
 
   @IntoMap
   @ServiceMetaKey(SERVICE_KEY)
   @Binds
   internal abstract fun designerNewsServiceMeta(@InternalApi meta: ServiceMeta): ServiceMeta
 
-  @IntoMap
-  @ServiceKey(SERVICE_KEY)
-  @Binds
-  internal abstract fun designerNewsService(service: DesignerNewsService): Service
-
   @Module
   companion object {
 
-    private const val SERVICE_KEY = "dn"
-
     @InternalApi
     @Provides
+    @Reusable
     @JvmStatic
     internal fun provideDesignerNewsMeta() = ServiceMeta(
         SERVICE_KEY,
@@ -130,6 +127,19 @@ abstract class DesignerNewsModule {
         pagesAreNumeric = true,
         firstPageKey = "0"
     )
+  }
+}
+
+@Module(includes = [DesignerNewsMetaModule::class])
+abstract class DesignerNewsModule {
+
+  @IntoMap
+  @ServiceKey(SERVICE_KEY)
+  @Binds
+  internal abstract fun designerNewsService(service: DesignerNewsService): Service
+
+  @Module
+  companion object {
 
     @Provides
     @InternalApi

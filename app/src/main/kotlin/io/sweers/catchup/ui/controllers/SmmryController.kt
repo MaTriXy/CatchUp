@@ -18,6 +18,7 @@ package io.sweers.catchup.ui.controllers
 
 import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
+import android.annotation.SuppressLint
 import android.arch.persistence.room.Dao
 import android.arch.persistence.room.Entity
 import android.arch.persistence.room.Insert
@@ -25,6 +26,7 @@ import android.arch.persistence.room.OnConflictStrategy
 import android.arch.persistence.room.PrimaryKey
 import android.arch.persistence.room.Query
 import android.content.Context
+import android.graphics.ColorFilter
 import android.os.Bundle
 import android.support.annotation.ColorInt
 import android.support.annotation.Keep
@@ -38,12 +40,15 @@ import android.widget.TextView
 import android.widget.Toast
 import butterknife.BindView
 import com.airbnb.lottie.LottieAnimationView
+import com.airbnb.lottie.LottieProperty
 import com.airbnb.lottie.SimpleColorFilter
+import com.airbnb.lottie.model.KeyPath
+import com.airbnb.lottie.value.LottieStaticValueCallback
 import com.bluelinelabs.conductor.Controller
 import com.bluelinelabs.conductor.RouterTransaction
 import com.bluelinelabs.conductor.changehandler.VerticalChangeHandler
 import com.squareup.moshi.Moshi
-import com.uber.autodispose.kotlin.autoDisposeWith
+import com.uber.autodispose.kotlin.autoDisposable
 import dagger.Lazy
 import dagger.Provides
 import dagger.Subcomponent
@@ -188,12 +193,14 @@ class SmmryController : ButterKnifeController {
   override fun inflateView(inflater: LayoutInflater, container: ViewGroup): View =
       inflater.inflate(R.layout.controller_smmry, container, false)
 
+  @SuppressLint("RestrictedApi") // False positive
   override fun onViewBound(view: View) {
     super.onViewBound(view)
     content.isNestedScrollingEnabled = true
     if (!alreadyLoaded) {
-      val colorFilter = SimpleColorFilter(accentColor)
-      lottieView.addColorFilter(colorFilter)
+      lottieView.addValueCallback<ColorFilter>(KeyPath("**"),
+          LottieProperty.COLOR_FILTER,
+          LottieStaticValueCallback(SimpleColorFilter(accentColor)))
     } else {
       loadingView.hide()
       content.show()
@@ -207,7 +214,7 @@ class SmmryController : ButterKnifeController {
         .firstOrError()
         .subscribeOn(Schedulers.io())
         .observeOn(AndroidSchedulers.mainThread())
-        .autoDisposeWith(this)
+        .autoDisposable(this)
         .subscribe({ smmryResponse ->
           alreadyLoaded = true
           when (smmryResponse) {

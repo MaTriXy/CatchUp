@@ -70,6 +70,8 @@ apollo {
 
 dependencies {
   api project(':service-api')
+
+  implementation project(':gemoji')
   implementation project(':util')
 
   compileOnly deps.auto.value.compileOnly.annotations

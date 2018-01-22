@@ -45,8 +45,7 @@ import butterknife.OnClick
 import com.apollographql.apollo.exception.ApolloException
 import com.bumptech.glide.integration.recyclerview.RecyclerViewPreloader
 import com.bumptech.glide.util.ViewPreloadSizeProvider
-import com.google.firebase.perf.FirebasePerformance
-import com.uber.autodispose.kotlin.autoDisposeWith
+import com.uber.autodispose.kotlin.autoDisposable
 import dagger.Subcomponent
 import dagger.android.AndroidInjector
 import io.reactivex.android.schedulers.AndroidSchedulers
@@ -72,7 +71,6 @@ import io.sweers.catchup.ui.base.DataLoadingSubject.DataLoadingCallbacks
 import io.sweers.catchup.ui.controllers.service.LoadResult.DiffResultData
 import io.sweers.catchup.ui.controllers.service.LoadResult.NewData
 import io.sweers.catchup.util.applyOn
-import io.sweers.catchup.util.d
 import io.sweers.catchup.util.e
 import io.sweers.catchup.util.hide
 import io.sweers.catchup.util.isVisible
@@ -82,7 +80,6 @@ import jp.wasabeef.recyclerview.animators.FadeInUpAnimator
 import retrofit2.HttpException
 import java.io.IOException
 import java.security.InvalidParameterException
-import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Provider
 
@@ -123,7 +120,7 @@ class ServiceController : ButterKnifeController,
     SwipeRefreshLayout.OnRefreshListener, Scrollable, DataLoadingSubject {
 
   companion object {
-    val ARG_SERVICE_KEY = "serviceKey"
+    const val ARG_SERVICE_KEY = "serviceKey"
     fun newInstance(serviceKey: String) =
         ServiceController(Bundle().apply {
           putString(
@@ -150,9 +147,12 @@ class ServiceController : ButterKnifeController,
   private var pendingRVState: Parcelable? = null
   private val defaultItemAnimator = DefaultItemAnimator()
 
-  @field:TextViewPool @Inject lateinit var textViewPool: RecycledViewPool
-  @field:VisualViewPool @Inject lateinit var visualViewPool: RecycledViewPool
-  @field:FinalServices @Inject lateinit var services: Map<String, @JvmSuppressWildcards Provider<Service>>
+  @field:TextViewPool
+  @Inject lateinit var textViewPool: RecycledViewPool
+  @field:VisualViewPool
+  @Inject lateinit var visualViewPool: RecycledViewPool
+  @field:FinalServices
+  @Inject lateinit var services: Map<String, @JvmSuppressWildcards Provider<Service>>
   private val service: Service by lazy {
     args[ARG_SERVICE_KEY].let {
       services[it]?.get() ?: throw IllegalArgumentException("No service provided for $it!")
@@ -200,7 +200,7 @@ class ServiceController : ButterKnifeController,
       val adapter = ImageAdapter(context) { item, holder ->
         service.bindItemView(item.realItem(), holder)
       }
-      val preloader = RecyclerViewPreloader<ImageItem>(GlideApp.with(activity),
+      val preloader = RecyclerViewPreloader<ImageItem>(GlideApp.with(context),
           adapter,
           ViewPreloadSizeProvider<ImageItem>(),
           ImageAdapter.PRELOAD_AHEAD_ITEMS)
@@ -212,7 +212,7 @@ class ServiceController : ButterKnifeController,
         item.summarizationInfo?.let {
           // We're not supporting this for now since it's not ready yet
 //          holder.itemLongClicks()
-//              .autoDisposeWith(this)
+//              .autoDisposable(this)
 //              .subscribe(SmmryController.showFor<Any>(controller = this,
 //                  service = service,
 //                  title = item.title,
@@ -226,7 +226,8 @@ class ServiceController : ButterKnifeController,
   override fun onViewBound(view: View) {
     super.onViewBound(view)
     @ColorInt val accentColor = ContextCompat.getColor(view.context, service.meta().themeColor)
-    @ColorInt val dayAccentColor = ContextCompat.getColor(dayOnlyContext!!, service.meta().themeColor)
+    @ColorInt val dayAccentColor = ContextCompat.getColor(dayOnlyContext!!,
+        service.meta().themeColor)
     swipeRefreshLayout.run {
       setColorSchemeColors(dayAccentColor)
       setOnRefreshListener(this@ServiceController)
@@ -378,20 +379,27 @@ class ServiceController : ButterKnifeController,
           swipeRefreshLayout.isRefreshing = false
         }
         .trace("Data load - ${service.meta().id}")
+        .doFinally {
+          dataLoading = false
+          recyclerView.post {
+            adapter.dataFinishedLoading()
+          }
+        }
         .doOnComplete { moreDataAvailable = false }
-        .autoDisposeWith(this)
+        .autoDisposable(this)
         .subscribe({ loadResult ->
           applyOn(progress, errorView) { hide() }
           swipeRefreshLayout.show()
           recyclerView.post {
-            when (adapter) {
-              is TextAdapter -> {
-                @Suppress("UNCHECKED_CAST") // badpokerface.png
-                (adapter as TextAdapter).update((loadResult as LoadResult<CatchUpItem>))
-              }
-              is ImageAdapter -> {
-                @Suppress("UNCHECKED_CAST")
-                (adapter as ImageAdapter).update((loadResult as LoadResult<ImageItem>))
+            @Suppress("UNCHECKED_CAST") // badpokerface.png
+            adapter.let {
+              when (it) {
+                is TextAdapter -> {
+                  it.update((loadResult as LoadResult<CatchUpItem>))
+                }
+                is ImageAdapter -> {
+                  it.update((loadResult as LoadResult<ImageItem>))
+                }
               }
             }
             pendingRVState?.let {

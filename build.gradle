@@ -15,8 +15,11 @@
  */
 
 plugins {
-  id 'com.gradle.build-scan' version '1.10.1'
+  id 'com.gradle.build-scan' version '1.11'
+  id 'com.github.ben-manes.versions' version '0.17.0'
 }
+
+apply plugin: 'com.github.ben-manes.versions' // ./gradlew dependencyUpdates -Drevision=release
 
 buildScan {
   licenseAgreementUrl = 'https://gradle.com/terms-of-service'
@@ -43,7 +46,6 @@ subprojects {
       classpath deps.android.firebase.gradlePlugin
       classpath deps.build.gradlePlugins.bugsnag
       classpath deps.build.gradlePlugins.psync
-      classpath deps.build.gradlePlugins.versions
       classpath deps.errorProne.gradlePlugin
       classpath deps.apollo.gradlePlugin
       classpath deps.build.gradlePlugins.playPublisher
@@ -82,7 +84,7 @@ subprojects {
 }
 
 task wrapper(type: Wrapper) {
-  gradleVersion = '4.4'
+  gradleVersion = '4.4.1'
   distributionUrl = "https://services.gradle.org/distributions/gradle-$gradleVersion-all.zip"
 }
 

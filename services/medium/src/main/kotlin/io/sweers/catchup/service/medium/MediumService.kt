@@ -22,6 +22,7 @@ import dagger.Binds
 import dagger.Lazy
 import dagger.Module
 import dagger.Provides
+import dagger.Reusable
 import dagger.multibindings.IntoMap
 import io.reactivex.Maybe
 import io.reactivex.Observable
@@ -51,6 +52,8 @@ import javax.inject.Qualifier
 @Qualifier
 private annotation class InternalApi
 
+private const val SERVICE_KEY = "medium"
+
 internal class MediumService @Inject constructor(
     @InternalApi private val serviceMeta: ServiceMeta,
     private val api: MediumApi,
@@ -62,8 +65,7 @@ internal class MediumService @Inject constructor(
   override fun fetchPage(request: DataRequest): Maybe<DataResult> {
     return api.top()
         .concatMapEager { references ->
-          Observable.fromIterable<Post>(references.post()
-              .values)
+          Observable.fromIterable<Post>(references.post().values)
               .map { post ->
                 MediumPost.builder()
                     .post(post)
@@ -101,12 +103,32 @@ internal class MediumService @Inject constructor(
 }
 
 @Module
-abstract class MediumModule {
+abstract class MediumMetaModule {
 
   @IntoMap
   @ServiceMetaKey(SERVICE_KEY)
   @Binds
   internal abstract fun mediumServiceMeta(@InternalApi meta: ServiceMeta): ServiceMeta
+
+  @Module
+  companion object {
+
+    @InternalApi
+    @Provides
+    @Reusable
+    @JvmStatic
+    internal fun provideMediumServiceMeta() = ServiceMeta(
+        SERVICE_KEY,
+        R.string.medium,
+        R.color.mediumAccent,
+        R.drawable.logo_medium,
+        firstPageKey = ""
+    )
+  }
+}
+
+@Module(includes = [MediumMetaModule::class])
+abstract class MediumModule {
 
   @IntoMap
   @ServiceKey(SERVICE_KEY)
@@ -116,38 +138,26 @@ abstract class MediumModule {
   @Module
   companion object {
 
-    private const val SERVICE_KEY = "medium"
-
-    @InternalApi
-    @Provides
-    @JvmStatic
-    internal fun provideMediumServiceMeta() = ServiceMeta(
-        SERVICE_KEY,
-        R.string.medium,
-        R.color.mediumAccent,
-        R.drawable.logo_medium,
-        firstPageKey = ""
-    )
-
     @Provides
     @InternalApi
     @JvmStatic
     internal fun provideMediumOkHttpClient(client: OkHttpClient): OkHttpClient {
       return client.newBuilder()
           .addInterceptor { chain ->
-            var request = chain.request()
-            request = request.newBuilder()
-                .url(request.url()
+            chain.proceed(chain.request().newBuilder()
+                // Tack format=json to the end
+                .url(chain.request().url()
                     .newBuilder()
                     .addQueryParameter("format", "json")
                     .build())
-                .build()
-            val response = chain.proceed(request)
-            val source = response.body()!!.source()
-            // Medium prefixes with a while loop to prevent javascript eval attacks, so skip to
-            // the first open curly brace
-            source.skip(source.indexOf('{'.toByte()))
-            response
+                .build())
+                .apply {
+                  body()?.source()?.let {
+                    // Medium prefixes with a while loop to prevent javascript eval attacks, so
+                    // skip to the first open curly brace
+                    it.skip(it.indexOf('{'.toByte()))
+                  }
+                }
           }
           .build()
     }

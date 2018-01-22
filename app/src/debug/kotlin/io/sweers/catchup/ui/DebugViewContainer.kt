@@ -39,7 +39,7 @@ import com.jakewharton.rxbinding2.support.v4.widget.drawerOpen
 import com.jakewharton.scalpel.ScalpelFrameLayout
 import com.mattprecious.telescope.TelescopeLayout
 import com.uber.autodispose.android.ViewScopeProvider
-import com.uber.autodispose.kotlin.autoDisposeWith
+import com.uber.autodispose.kotlin.autoDisposable
 import dagger.Lazy
 import io.reactivex.Completable
 import io.reactivex.android.schedulers.AndroidSchedulers
@@ -113,7 +113,7 @@ internal class DebugViewContainer @Inject constructor(
         }
         .subscribeOn(Schedulers.io())
         .observeOn(AndroidSchedulers.mainThread())
-        .autoDisposeWith(activity)
+        .autoDisposable(activity)
         .subscribe {
           viewHolder.telescopeLayout.setLens(bugReportLens)
         }
@@ -123,8 +123,8 @@ internal class DebugViewContainer @Inject constructor(
         target = {
           DrawerTapTarget(
               delegateTarget = TapTarget.forView(debugView.icon,
-                  debugView.resources.getString(R.string.development_settings),
-                  debugView.resources.getString(R.string.debug_drawer_welcome)),
+                  "",
+                  ""),
               drawerLayout = viewHolder.drawerLayout,
               gravity = Gravity.END,
               title = debugView.resources.getString(R.string.development_settings),
@@ -138,12 +138,7 @@ internal class DebugViewContainer @Inject constructor(
               .drawShadow(true)
               .transparentTarget(true)
               .id("DebugDrawer")
-              .apply {
-                // fontArbiter.getFont()?.let(::textTypeface)  // Uncomment this to make the kotlin compiler explode
-                fontHelper.getFont()?.let {
-                  textTypeface(it)
-                }
-              }
+              .apply { fontHelper.getFont()?.let(::textTypeface) }
         },
         postDisplay = {
           viewHolder.drawerLayout.closeDrawer(GravityCompat.END)
@@ -163,7 +158,7 @@ internal class DebugViewContainer @Inject constructor(
           unbinder.unbind()
           disposables.clear()
         }
-        .autoDisposeWith(activity)
+        .autoDisposable(activity)
         .subscribe {
           unbinder.unbind()
           disposables.clear()
@@ -205,20 +200,25 @@ internal class DebugViewContainer @Inject constructor(
         val power = activity.getSystemService<PowerManager>()
         power.newWakeLock(FULL_WAKE_LOCK or ACQUIRE_CAUSES_WAKEUP or ON_AFTER_RELEASE,
             "wakeup!").run {
-          acquire(TimeUnit.MILLISECONDS.convert(1, SECONDS))
-          release()
-        }
+              acquire(TimeUnit.MILLISECONDS.convert(1, SECONDS))
+              release()
+            }
       }
     }
   }
 }
 
 internal class DebugViewViewHolder {
-  @BindView(R.id.debug_drawer_layout) lateinit var drawerLayout: DrawerLayout
-  @BindView(R.id.debug_drawer) lateinit var debugDrawer: ViewGroup
-  @BindView(R.id.telescope_container) lateinit var telescopeLayout: TelescopeLayout
-  @BindView(R.id.madge_container) lateinit var madgeFrameLayout: MadgeFrameLayout
-  @BindView(R.id.debug_content) lateinit var content: ScalpelFrameLayout
+  @BindView(R.id.debug_drawer_layout)
+  lateinit var drawerLayout: DrawerLayout
+  @BindView(R.id.debug_drawer)
+  lateinit var debugDrawer: ViewGroup
+  @BindView(R.id.telescope_container)
+  lateinit var telescopeLayout: TelescopeLayout
+  @BindView(R.id.madge_container)
+  lateinit var madgeFrameLayout: MadgeFrameLayout
+  @BindView(R.id.debug_content)
+  lateinit var content: ScalpelFrameLayout
 }
 
 class DrawerTapTarget(
@@ -241,7 +241,7 @@ class DrawerTapTarget(
         drawerLayout.drawerOpen(gravity)
             .filter { it }
             .firstElement()
-            .autoDisposeWith(ViewScopeProvider.from(drawerLayout))
+            .autoDisposable(ViewScopeProvider.from(drawerLayout))
             .subscribe {
               delegateTarget.onReady(runnable)
             }

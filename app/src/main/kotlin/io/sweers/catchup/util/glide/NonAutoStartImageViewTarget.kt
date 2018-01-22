@@ -33,6 +33,7 @@ abstract class NonAutoStartImageViewTarget<Z> : ViewTarget<ImageView, Z>, Transi
 
   constructor(view: ImageView) : super(view)
 
+  @Suppress("DEPRECATION")
   constructor(view: ImageView, waitForLayout: Boolean) : super(view, waitForLayout)
 
   override fun getCurrentDrawable(): Drawable? {
@@ -85,10 +86,10 @@ abstract class NonAutoStartImageViewTarget<Z> : ViewTarget<ImageView, Z>, Transi
   }
 
   private fun maybeUpdateAnimatable(resource: Z?) {
-    if (resource is Animatable) {
-      animatable = resource
+    animatable = if (resource is Animatable) {
+      resource
     } else {
-      animatable = null
+      null
     }
   }
 
