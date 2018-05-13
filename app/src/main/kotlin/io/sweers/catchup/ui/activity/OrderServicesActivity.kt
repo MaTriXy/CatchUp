@@ -1,3 +1,19 @@
+/*
+ * Copyright (c) 2018 Zac Sweers
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package io.sweers.catchup.ui.activity
 
 import android.animation.AnimatorInflater
@@ -5,26 +21,21 @@ import android.animation.StateListAnimator
 import android.app.Activity
 import android.content.Context
 import android.content.SharedPreferences
-import android.content.res.Configuration
 import android.graphics.Rect
 import android.os.Bundle
-import android.support.design.widget.FloatingActionButton
-import android.support.design.widget.FloatingActionButton.OnVisibilityChangedListener
-import android.support.v4.app.NavUtils
-import android.support.v4.content.ContextCompat
-import android.support.v7.app.AlertDialog
-import android.support.v7.app.AppCompatActivity
-import android.support.v7.widget.LinearLayoutManager
-import android.support.v7.widget.RecyclerView
-import android.support.v7.widget.RecyclerView.ViewHolder
-import android.support.v7.widget.Toolbar
-import android.support.v7.widget.helper.ItemTouchHelper
 import android.view.LayoutInflater
-import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.Toolbar
+import androidx.core.content.ContextCompat
+import androidx.core.view.doOnLayout
+import androidx.recyclerview.widget.ItemTouchHelper
+import androidx.recyclerview.widget.RecyclerView
+import androidx.recyclerview.widget.RecyclerView.ViewHolder
 import butterknife.BindView
 import butterknife.ButterKnife
 import com.bluelinelabs.conductor.Conductor
@@ -32,6 +43,8 @@ import com.bluelinelabs.conductor.Controller
 import com.bluelinelabs.conductor.Router
 import com.bluelinelabs.conductor.RouterTransaction
 import com.getkeepsafe.taptargetview.TapTarget
+import com.google.android.material.floatingactionbutton.FloatingActionButton
+import com.google.android.material.floatingactionbutton.FloatingActionButton.OnVisibilityChangedListener
 import dagger.Binds
 import dagger.Module
 import dagger.Subcomponent
@@ -48,20 +61,13 @@ import io.sweers.catchup.injection.ControllerKey
 import io.sweers.catchup.injection.scopes.PerActivity
 import io.sweers.catchup.injection.scopes.PerController
 import io.sweers.catchup.service.api.ServiceMeta
-import io.sweers.catchup.service.designernews.DesignerNewsMetaModule
-import io.sweers.catchup.service.dribbble.DribbbleMetaModule
-import io.sweers.catchup.service.github.GitHubMetaModule
-import io.sweers.catchup.service.hackernews.HackerNewsMetaModule
-import io.sweers.catchup.service.medium.MediumMetaModule
-import io.sweers.catchup.service.producthunt.ProductHuntMetaModule
-import io.sweers.catchup.service.reddit.RedditMetaModule
-import io.sweers.catchup.service.slashdot.SlashdotMetaModule
+import io.sweers.catchup.serviceregistry.ResolvedCatchUpServiceMetaRegistry
 import io.sweers.catchup.ui.FontHelper
 import io.sweers.catchup.ui.base.BaseActivity
 import io.sweers.catchup.ui.base.ButterKnifeController
 import io.sweers.catchup.util.ColorUtils
+import io.sweers.catchup.util.asDayContext
 import io.sweers.catchup.util.isInNightMode
-import io.sweers.catchup.util.onLaidOut
 import io.sweers.catchup.util.resolveAttributeColor
 import io.sweers.catchup.util.setLightStatusBar
 import java.util.Collections
@@ -87,13 +93,6 @@ class OrderServicesActivity : BaseActivity() {
     if (!router.hasRootController()) {
       router.setRoot(RouterTransaction.with(OrderServicesController()))
     }
-  }
-
-  override fun onOptionsItemSelected(item: MenuItem): Boolean {
-    if (item.itemId == android.R.id.home) {
-      NavUtils.navigateUpFromSameTask(this)
-    }
-    return super.onOptionsItemSelected(item)
   }
 
   override fun onBackPressed() {
@@ -125,7 +124,7 @@ class OrderServicesController : ButterKnifeController() {
   @BindView(R.id.toolbar)
   lateinit var toolbar: Toolbar
   @BindView(R.id.list)
-  lateinit var recyclerView: RecyclerView
+  lateinit var recyclerView: androidx.recyclerview.widget.RecyclerView
 
   private var _pendingChanges: List<ServiceMeta>? = null
   private var pendingChanges: List<ServiceMeta>?
@@ -162,15 +161,13 @@ class OrderServicesController : ButterKnifeController() {
       }
     }
     toolbar.title = toolbar.context.getString(R.string.pref_reorder_services)
-    recyclerView.layoutManager = LinearLayoutManager(view.context)
+    recyclerView.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(view.context)
     val currentOrder = sharedPrefs.getString(P.ServicesOrder.KEY, null)?.split(",") ?: emptyList()
 
     val currentItemsSorted = serviceMetas.values.sortedBy { currentOrder.indexOf(it.id) }
     val adapter = Adapter(
         // Use a day context since this is like the tablayout UI
-        recyclerView.context.createConfigurationContext(
-            Configuration(recyclerView.context.resources.configuration)
-                .apply { uiMode = Configuration.UI_MODE_NIGHT_NO }),
+        recyclerView.context.asDayContext(),
         currentItemsSorted) { newItemOrder ->
       pendingChanges = if (newItemOrder != currentItemsSorted) {
         newItemOrder
@@ -316,13 +313,13 @@ private class Holder(itemView: View) : RecyclerView.ViewHolder(itemView) {
 private class MoveCallback(
     private val callback: (Int, Int) -> Unit) : ItemTouchHelper.SimpleCallback(
     ItemTouchHelper.UP or ItemTouchHelper.DOWN, 0) {
-  override fun onMove(recyclerView: RecyclerView, viewHolder: ViewHolder,
+  override fun onMove(recyclerView: androidx.recyclerview.widget.RecyclerView, viewHolder: ViewHolder,
       target: ViewHolder): Boolean {
     callback(viewHolder.adapterPosition, target.adapterPosition)
     return true
   }
 
-  override fun onSwiped(viewHolder: ViewHolder?, direction: Int) {
+  override fun onSwiped(viewHolder: ViewHolder, direction: Int) {
     // Noop
   }
 
@@ -339,7 +336,7 @@ private class MoveCallback(
     }
   }
 
-  override fun clearView(recyclerView: RecyclerView, viewHolder: ViewHolder) {
+  override fun clearView(recyclerView: androidx.recyclerview.widget.RecyclerView, viewHolder: ViewHolder) {
     super.clearView(recyclerView, viewHolder)
     (viewHolder as Holder).updateSelection(false)
   }
@@ -364,19 +361,7 @@ interface OrderServicesComponent : AndroidInjector<OrderServicesController> {
   abstract class Builder : AndroidInjector.Builder<OrderServicesController>()
 }
 
-@Module(
-    includes = [
-      HackerNewsMetaModule::class,
-      RedditMetaModule::class,
-      MediumMetaModule::class,
-      ProductHuntMetaModule::class,
-      SlashdotMetaModule::class,
-      DesignerNewsMetaModule::class,
-      DribbbleMetaModule::class,
-      GitHubMetaModule::class
-//      ImgurModule::class
-    ]
-)
+@Module(includes = [ResolvedCatchUpServiceMetaRegistry::class])
 abstract class OrderServicesModule {
 
   @Multibinds
@@ -398,7 +383,7 @@ private class FabShowTapTarget(
   }
 
   override fun onReady(runnable: Runnable) {
-    fab.onLaidOut {
+    fab.doOnLayout {
       if (fab.isShown) {
         delegateTarget().onReady(runnable)
       } else {

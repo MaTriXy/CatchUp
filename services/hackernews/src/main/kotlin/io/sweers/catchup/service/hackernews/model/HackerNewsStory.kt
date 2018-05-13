@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2017 Zac Sweers
+ * Copyright (c) 2018 Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,76 +16,60 @@
 
 package io.sweers.catchup.service.hackernews.model
 
-import com.google.auto.value.AutoValue
+import androidx.annotation.Keep
 import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.Exclude
 import io.sweers.catchup.service.api.HasStableId
-import me.mattlogan.auto.value.firebase.adapter.FirebaseAdapter
-import me.mattlogan.auto.value.firebase.adapter.TypeAdapter
-import me.mattlogan.auto.value.firebase.annotation.FirebaseValue
 import org.threeten.bp.Instant
 import java.util.Locale
 import java.util.concurrent.TimeUnit
+import kotlin.annotation.AnnotationRetention.SOURCE
+import kotlin.annotation.AnnotationTarget.CLASS
 
-@AutoValue
-@FirebaseValue
-internal abstract class HackerNewsStory : HasStableId {
+@Retention(SOURCE)
+@Target(CLASS)
+annotation class NoArg
 
-  abstract fun by(): String
+@Keep
+@NoArg
+internal data class HackerNewsStory(
+    val by: String,
+    val dead: Boolean,
+    val deleted: Boolean,
+    val descendants: Int,
+    val id: Long,
+    val kids: List<Long>?,
+    val parent: HackerNewsStory?,
+    val parts: List<String>?,
+    val score: Int,
+    /* private, but Firebase is too dumb to read private fields */ val time: Long?,
+    val title: String,
+    val text: String?,
+    /* private, but Firebase is too dumb to read private fields */ val type: String?,
+    val url: String?) : HasStableId {
 
-  abstract fun dead(): Boolean
+  @Exclude
+  override fun stableId() = id
 
-  abstract fun deleted(): Boolean
+  /*
+   * Excluded "real" fields. Would like to expose these as the main fields, but firebase matches property names to them anyway
+   *
+   * They also have to be functions because if you try to read them as fields, they always return null! ¯\_(ツ)_/¯
+   */
 
-  abstract fun descendants(): Int
+  @Exclude
+  fun realTime(): Instant = time?.let {
+    Instant.ofEpochMilli(
+        TimeUnit.MILLISECONDS.convert(it, TimeUnit.SECONDS))
+  } ?: Instant.now()
 
-  abstract fun id(): Long
+    @Exclude
+    fun realType() = type?.let { HNType.valueOf(it.toUpperCase(Locale.US)) }
 
-  abstract fun kids(): List<Long>?
-
-  abstract fun parent(): HackerNewsStory?
-
-  abstract fun parts(): List<String>?
-
-  abstract fun score(): Int
-
-  @FirebaseAdapter(InstantAdapter::class) abstract fun time(): Instant
-
-  abstract fun title(): String
-
-  abstract fun text(): String?
-
-  @FirebaseAdapter(
-      HNTypeAdapter::class) abstract fun type(): HNType
-
-  abstract fun url(): String?
-
-  override fun stableId() = id()
-
-  class InstantAdapter : TypeAdapter<Instant, Long> {
-    override fun fromFirebaseValue(value: Long?): Instant =
-        Instant.ofEpochMilli(TimeUnit.MILLISECONDS.convert(value!!, TimeUnit.SECONDS))
-
-    override fun toFirebaseValue(value: Instant): Long? {
-      val longTime = value.toEpochMilli()
-      return TimeUnit.MILLISECONDS.convert(longTime, TimeUnit.SECONDS)
-    }
-  }
-
-  class HNTypeAdapter : TypeAdapter<HNType, String> {
-    override fun fromFirebaseValue(value: String): HNType =
-        HNType.valueOf(value.toUpperCase(Locale.US))
-
-    override fun toFirebaseValue(value: HNType): String {
-      return value.name
-          .toLowerCase(Locale.US)
-    }
-  }
-
-  companion object {
+    companion object {
 
     fun create(dataSnapshot: DataSnapshot): HackerNewsStory {
-      return dataSnapshot.getValue(AutoValue_HackerNewsStory.FirebaseValue::class.java)!!
-          .toAutoValue()
+      return dataSnapshot.getValue(HackerNewsStory::class.java)!!
     }
   }
 }

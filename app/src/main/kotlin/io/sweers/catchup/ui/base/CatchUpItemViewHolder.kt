@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2017 Zac Sweers
+ * Copyright (c) 2018 Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,14 +17,14 @@
 package io.sweers.catchup.ui.base
 
 import android.content.res.ColorStateList
-import android.support.annotation.ColorInt
-import android.support.constraint.ConstraintLayout
-import android.support.constraint.ConstraintSet
-import android.support.v4.graphics.drawable.DrawableCompat
-import android.support.v7.widget.RxViewHolder
 import android.text.format.DateUtils
 import android.view.View
 import android.widget.TextView
+import androidx.annotation.ColorInt
+import androidx.constraintlayout.widget.ConstraintSet
+import androidx.core.graphics.drawable.DrawableCompat
+import androidx.core.view.isVisible
+import androidx.recyclerview.widget.RxViewHolder
 import butterknife.BindView
 import butterknife.ButterKnife
 import butterknife.Unbinder
@@ -36,7 +36,6 @@ import io.sweers.catchup.service.api.CatchUpItem
 import io.sweers.catchup.service.api.LinkHandler
 import io.sweers.catchup.util.format
 import io.sweers.catchup.util.hide
-import io.sweers.catchup.util.isVisible
 import io.sweers.catchup.util.show
 import io.sweers.catchup.util.showIf
 import org.threeten.bp.Instant
@@ -44,18 +43,30 @@ import org.threeten.bp.Instant
 class CatchUpItemViewHolder(itemView: View) : RxViewHolder(
     itemView), BindableCatchUpItemViewHolder {
 
-  @BindView(R.id.container) internal lateinit var container: ConstraintLayout
-  @BindView(R.id.tags_container) internal lateinit var tagsContainer: View
-  @BindView(R.id.title) internal lateinit var title: TextView
-  @BindView(R.id.score) internal lateinit var score: TextView
-  @BindView(R.id.score_divider) internal lateinit var scoreDivider: TextView
-  @BindView(R.id.timestamp) internal lateinit var timestamp: TextView
-  @BindView(R.id.author) internal lateinit var author: TextView
-  @BindView(R.id.author_divider) internal lateinit var authorDivider: TextView
-  @BindView(R.id.source) internal lateinit var source: TextView
-  @BindView(R.id.comments) internal lateinit var comments: TextView
-  @BindView(R.id.tag) internal lateinit var tag: TextView
-  @BindView(R.id.tag_divider) internal lateinit var tagDivider: View
+  @BindView(R.id.container)
+  internal lateinit var container: androidx.constraintlayout.widget.ConstraintLayout
+  @BindView(R.id.tags_container)
+  internal lateinit var tagsContainer: View
+  @BindView(R.id.title)
+  internal lateinit var title: TextView
+  @BindView(R.id.score)
+  internal lateinit var score: TextView
+  @BindView(R.id.score_divider)
+  internal lateinit var scoreDivider: TextView
+  @BindView(R.id.timestamp)
+  internal lateinit var timestamp: TextView
+  @BindView(R.id.author)
+  internal lateinit var author: TextView
+  @BindView(R.id.author_divider)
+  internal lateinit var authorDivider: TextView
+  @BindView(R.id.source)
+  internal lateinit var source: TextView
+  @BindView(R.id.comments)
+  internal lateinit var comments: TextView
+  @BindView(R.id.tag)
+  internal lateinit var tag: TextView
+  @BindView(R.id.tag_divider)
+  internal lateinit var tagDivider: View
   private var unbinder: Unbinder? = null
 
   private val constraintSet: ConstraintSet
@@ -148,11 +159,11 @@ class CatchUpItemViewHolder(itemView: View) : RxViewHolder(
       }
       2 -> {
         when {
-          timestamp.isVisible() -> {
+          timestamp.isVisible -> {
             tagDivider.show()
             scoreDivider.hide()
           }
-          score.isVisible() -> {
+          score.isVisible -> {
             scoreDivider.show()
             tagDivider.hide()
           }
@@ -227,7 +238,8 @@ class CatchUpItemViewHolder(itemView: View) : RxViewHolder(
 
   fun hideComments() = comments.hide()
 
-  private fun getVerticalBias(sourceBlank: Boolean, authorBlank: Boolean) = if (sourceBlank && authorBlank) {
+  private fun getVerticalBias(sourceBlank: Boolean,
+      authorBlank: Boolean) = if (sourceBlank && authorBlank) {
     0.5f // Center
   } else if (sourceBlank) {
     0f // Top

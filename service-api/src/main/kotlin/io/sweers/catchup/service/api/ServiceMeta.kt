@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2017 Zac Sweers
+ * Copyright (c) 2018 Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,9 +16,9 @@
 
 package io.sweers.catchup.service.api
 
-import android.support.annotation.ColorRes
-import android.support.annotation.DrawableRes
-import android.support.annotation.StringRes
+import androidx.annotation.ColorRes
+import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
 
 data class ServiceMeta(
     val id: String,
@@ -27,5 +27,8 @@ data class ServiceMeta(
     @DrawableRes val icon: Int,
     val isVisual: Boolean = false,
     val firstPageKey: String,
-    val pagesAreNumeric: Boolean = false
-)
+    val pagesAreNumeric: Boolean = false,
+    val serviceConfiguration: ServiceConfiguration? = null
+) {
+  val enabledKey = "service_config_${id}_enabled"
+}

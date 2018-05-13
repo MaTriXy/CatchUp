@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2017 Zac Sweers
+ * Copyright (c) 2018 Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -20,6 +20,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.os.Looper
 import com.f2prateek.rx.preferences2.RxSharedPreferences
+import com.serjltt.moshi.adapters.Wrapped
 import com.squareup.moshi.ArrayMapJsonAdapter
 import com.squareup.moshi.Moshi
 import dagger.Module
@@ -51,8 +52,8 @@ abstract class DataModule {
   @Module
   companion object {
 
-    private val HTTP_RESPONSE_CACHE = (10 * 1024 * 1024).toLong()
-    private val HTTP_TIMEOUT_S = 30
+    private const val HTTP_RESPONSE_CACHE = (10 * 1024 * 1024).toLong()
+    private const val HTTP_TIMEOUT_S = 30
 
     @Provides
     @JvmStatic
@@ -91,7 +92,8 @@ abstract class DataModule {
     @JvmStatic
     @Singleton
     internal fun provideMoshi(): Moshi {
-      return Moshi.Builder().add(ModelArbiter.createMoshiAdapterFactory())
+      return Moshi.Builder()
+          .add(Wrapped.ADAPTER_FACTORY)
           .add(UnescapeJsonAdapter.FACTORY)
           .add(ArrayMapJsonAdapter.FACTORY)
           .add(ArrayCollectionJsonAdapter.FACTORY)

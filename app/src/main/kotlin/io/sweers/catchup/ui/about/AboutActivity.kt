@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2017 Zac Sweers
+ * Copyright (c) 2018 Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,23 +23,19 @@ import android.content.Context
 import android.graphics.Typeface
 import android.os.Bundle
 import android.os.Parcelable
-import android.support.annotation.Px
-import android.support.design.widget.AppBarLayout
-import android.support.design.widget.CollapsingToolbarLayout
-import android.support.design.widget.CoordinatorLayout
-import android.support.design.widget.TabLayout
-import android.support.v4.app.NavUtils
-import android.support.v4.view.ViewPager
-import android.support.v7.app.AppCompatActivity
-import android.support.v7.widget.Toolbar
 import android.text.style.StyleSpan
 import android.view.LayoutInflater
-import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.annotation.Px
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.widget.Toolbar
+import androidx.coordinatorlayout.widget.CoordinatorLayout
+import androidx.core.util.layoutDirection
+import androidx.viewpager.widget.ViewPager
 import butterknife.BindView
 import butterknife.ButterKnife
 import com.bluelinelabs.conductor.Conductor
@@ -47,6 +43,9 @@ import com.bluelinelabs.conductor.Controller
 import com.bluelinelabs.conductor.Router
 import com.bluelinelabs.conductor.RouterTransaction
 import com.bluelinelabs.conductor.support.RouterPagerAdapter
+import com.google.android.material.appbar.AppBarLayout
+import com.google.android.material.appbar.CollapsingToolbarLayout
+import com.google.android.material.tabs.TabLayout
 import com.jakewharton.rxbinding2.support.design.widget.RxAppBarLayout
 import com.uber.autodispose.kotlin.autoDisposable
 import dagger.Binds
@@ -68,12 +67,12 @@ import io.sweers.catchup.ui.base.ButterKnifeController
 import io.sweers.catchup.util.LinkTouchMovementMethod
 import io.sweers.catchup.util.TouchableUrlSpan
 import io.sweers.catchup.util.UiUtil
+import io.sweers.catchup.util.buildMarkdown
 import io.sweers.catchup.util.customtabs.CustomTabActivityHelper
 import io.sweers.catchup.util.isInNightMode
-import io.sweers.catchup.util.isRtl
-import io.sweers.catchup.util.markdown
 import io.sweers.catchup.util.parseMarkdownAndPlainLinks
 import io.sweers.catchup.util.setLightStatusBar
+import java.util.Locale
 import javax.inject.Inject
 
 class AboutActivity : BaseActivity() {
@@ -105,13 +104,6 @@ class AboutActivity : BaseActivity() {
     if (!router.hasRootController()) {
       router.setRoot(RouterTransaction.with(AboutController()))
     }
-  }
-
-  override fun onOptionsItemSelected(item: MenuItem): Boolean {
-    if (item.itemId == android.R.id.home) {
-      NavUtils.navigateUpFromSameTask(this)
-    }
-    return super.onOptionsItemSelected(item)
   }
 
   override fun onBackPressed() {
@@ -259,19 +251,21 @@ class AboutController : ButterKnifeController() {
     }
 
     aboutText.movementMethod = LinkTouchMovementMethod.getInstance()
-    aboutText.text = """
-      |${aboutText.resources.getString(R.string.about_description)}
-      |
-      |
-      |${aboutText.resources.getString(R.string.about_version, BuildConfig.VERSION_NAME)}
-      |
-      |${aboutText.resources.getString(R.string.about_attribution)}
-    """.trimMargin()
-        .markdown()
-        .parseMarkdownAndPlainLinks(
-            on = aboutText,
-            with = bypass,
-            alternateSpans = compositeClickSpan)
+    aboutText.text = buildMarkdown {
+      text(aboutText.resources.getString(R.string.about_description))
+      newline(3)
+      text(aboutText.resources.getString(R.string.about_version, BuildConfig.VERSION_NAME))
+      newline(2)
+      text(aboutText.resources.getString(R.string.about_by))
+      space()
+      link("https://twitter.com/pandanomic", "Zac Sweers")
+      text(" - ")
+      link("https://github.com/hzsweers/CatchUp",
+          aboutText.resources.getString(R.string.about_source_code))
+    }.parseMarkdownAndPlainLinks(
+        on = aboutText,
+        with = bypass,
+        alternateSpans = compositeClickSpan)
 
     setUpPager()
 
@@ -295,10 +289,10 @@ class AboutController : ButterKnifeController() {
 
       override fun onTabReselected(tab: TabLayout.Tab) {
         pagerAdapter.getRouter(tab.position)?.getControllerWithTag(PAGE_TAG)?.let {
-              if (it is Scrollable) {
-                it.onRequestScrollToTop()
-              }
-            }
+          if (it is Scrollable) {
+            it.onRequestScrollToTop()
+          }
+        }
       }
     })
   }
@@ -316,7 +310,7 @@ class AboutController : ButterKnifeController() {
     @Px val translatableHeight = appBarLayout.measuredHeight - finalAppBarHeight
     @Px val titleX = title.x
     @Px val titleInset = toolbar.titleMarginStart
-    @Px val desiredTitleX = if (toolbar.isRtl()) {
+    @Px val desiredTitleX = if (Locale.getDefault().layoutDirection == View.LAYOUT_DIRECTION_RTL) {
       // I have to subtract 2x to line this up correctly
       // I have no idea why
       toolbar.measuredWidth - titleInset - titleInset

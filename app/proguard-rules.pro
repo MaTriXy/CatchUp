@@ -51,48 +51,11 @@
 -keepattributes Signature
 # Retain declared checked exceptions for use by a Proxy instance.
 -keepattributes Exceptions
-
-# Glide
--keep public class * implements com.bumptech.glide.module.GlideModule
--keep public enum com.bumptech.glide.load.resource.bitmap.ImageHeaderParser$** {
-    **[] $VALUES;
-    public *;
+# This is to keep parameters on retrofit2.http-annotated methods while still allowing removal of unused ones
+-keep,allowobfuscation @interface retrofit2.http.**
+-keepclassmembers,allowshrinking,allowobfuscation interface * {
+    @retrofit2.http.** <methods>;
 }
-
-# SimpleXML
--dontwarn com.bea.xml.stream.**
--dontwarn org.simpleframework.xml.stream.**
--keep class org.simpleframework.xml.**{ *; }
--keepclassmembers,allowobfuscation class * {
-    @org.simpleframework.xml.* <fields>;
-    @org.simpleframework.xml.* <init>(...);
-}
-
-# Some models that need to be reflective
--keep class io.sweers.catchup.data.github.**{ *; }
--keep class io.sweers.catchup.data.hackernews.model.**{ *; }
-
-# Bugsnag - https://github.com/bugsnag/bugsnag-android-gradle-plugin/issues/55
--keepattributes SourceFile,LineNumberTable
--keep class com.bugsnag.android.NativeInterface { *; }
--keep class com.bugsnag.android.Breadcrumbs { *; }
--keep class com.bugsnag.android.Breadcrumbs$Breadcrumb { *; }
--keep class com.bugsnag.android.BreadcrumbType { *; }
--keep class com.bugsnag.android.Severity { *; }
--keep class com.bugsnag.android.ndk.BugsnagObserver { *; }
-
-# Weird support library issue
--keep class android.support.** {
-    *;
-}
-
-# Keep generated firebase AV class
--keep class io.sweers.catchup.service.hackernews.model.** {
-    *;
-}
-
-# Database/Room stuff
--keep class * implements android.arch.lifecycle.GeneratedAdapter {<init>(...);}
 
 # Okio
 -dontwarn okio.**
@@ -102,33 +65,6 @@
 
 # Javax Extras
 -dontwarn com.uber.javaxextras.**
-
-# Guava
--keep class com.google.common.io.Resources {
-    public static <methods>;
-}
--keep class com.google.common.collect.Lists {
-    public static ** reverse(**);
-}
--keep class com.google.common.base.Charsets {
-    public static <fields>;
-}
-
--keep class com.google.common.base.Joiner {
-    public static com.google.common.base.Joiner on(java.lang.String);
-    public ** join(...);
-}
--keep class com.google.common.collect.MapMakerInternalMap$ReferenceEntry
--keep class com.google.common.cache.LocalCache$ReferenceEntry
--dontwarn javax.annotation.**
--dontwarn javax.inject.**
--dontwarn sun.misc.Unsafe
--dontwarn java.lang.ClassValue
--dontwarn com.google.j2objc.annotations.Weak
--dontwarn org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement
-
-# Error Prone
--dontwarn com.google.errorprone.annotations.**
 
 # RxJava 1
 -dontwarn sun.misc.**
@@ -147,3 +83,32 @@
 # Glide
 -keep public class * extends com.bumptech.glide.module.AppGlideModule
 -keep class com.bumptech.glide.GeneratedAppGlideModuleImpl
+
+# Fonts have a messed up proguard config
+-keep class android.support.v4.provider.** { *; }
+
+# CheckerFramework/EP
+-dontwarn org.checkerframework.**
+-dontwarn afu.org.checkerframework.**
+-dontwarn com.google.errorprone.annotations.**
+
+# Bypass
+-keep class in.uncod.android.bypass.Document { <init>(...); }
+-keep class in.uncod.android.bypass.Element {
+    <init>(...);
+    void setChildren(...);
+    void setParent(...);
+    void addAttribute(...);
+}
+
+# Tikxml
+-keepnames class **$$TypeAdapter
+-keepnames @com.tickaroo.tikxml.annotation.Xml class *
+
+# MoshKt
+# Retain generated classes that end in the suffix
+-keepnames class **JsonAdapter
+
+# Prevent obfuscation of types which use @MoshiSerializable since the simple name
+# is used to reflectively look up the generated adapter.
+-keepnames @com.squareup.moshi.JsonClass class *

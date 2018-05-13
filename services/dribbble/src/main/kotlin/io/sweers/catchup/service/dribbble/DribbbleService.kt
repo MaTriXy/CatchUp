@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2017 Zac Sweers
+ * Copyright (c) 2018 Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,7 +16,6 @@
 
 package io.sweers.catchup.service.dribbble
 
-import com.squareup.moshi.Moshi
 import dagger.Binds
 import dagger.Lazy
 import dagger.Module
@@ -34,13 +33,11 @@ import io.sweers.catchup.service.api.ServiceKey
 import io.sweers.catchup.service.api.ServiceMeta
 import io.sweers.catchup.service.api.ServiceMetaKey
 import io.sweers.catchup.service.api.VisualService
-import io.sweers.catchup.util.data.adapters.ISO8601InstantAdapter
-import io.sweers.catchup.util.network.AuthInterceptor
+import io.sweers.catchup.serviceregistry.annotations.Meta
+import io.sweers.catchup.serviceregistry.annotations.ServiceModule
 import okhttp3.OkHttpClient
-import org.threeten.bp.Instant
 import retrofit2.Retrofit
 import retrofit2.adapter.rxjava2.RxJava2CallAdapterFactory
-import retrofit2.converter.moshi.MoshiConverterFactory
 import javax.inject.Inject
 import javax.inject.Qualifier
 
@@ -63,19 +60,19 @@ internal class DribbbleService @Inject constructor(
         .flattenAsObservable { it }
         .map {
           CatchUpItem(
-              id = it.id(),
+              id = it.id,
               title = "",
-              score = "+" to it.likesCount().toInt(),
-              timestamp = it.createdAt(),
-              author = "/u/" + it.user().name(),
+              score = "+" to it.likesCount.toInt(),
+              timestamp = it.createdAt,
+              author = "/u/" + it.user.name,
               source = null,
-              commentCount = it.commentsCount().toInt(),
+              commentCount = it.commentsCount.toInt(),
               tag = null,
-              itemClickUrl = it.htmlUrl(),
+              itemClickUrl = it.htmlUrl,
               imageInfo = ImageInfo(
-                  it.images().best(),
-                  it.animated(),
-                  it.images().bestSize()
+                  it.images.best(),
+                  it.animated,
+                  it.images.bestSize()
               )
           )
         }
@@ -87,6 +84,8 @@ internal class DribbbleService @Inject constructor(
   override fun linkHandler() = linkHandler
 }
 
+@Meta
+@ServiceModule
 @Module
 abstract class DribbbleMetaModule {
 
@@ -109,11 +108,12 @@ abstract class DribbbleMetaModule {
         R.drawable.logo_dribbble,
         isVisual = true,
         pagesAreNumeric = true,
-        firstPageKey = "0"
+        firstPageKey = "1"
     )
   }
 }
 
+@ServiceModule
 @Module(includes = [DribbbleMetaModule::class])
 abstract class DribbbleModule {
 
@@ -126,35 +126,13 @@ abstract class DribbbleModule {
   companion object {
 
     @Provides
-    @InternalApi
     @JvmStatic
-    internal fun provideDribbbleOkHttpClient(
-        client: OkHttpClient): OkHttpClient {
-      return client.newBuilder()
-          .addInterceptor(AuthInterceptor("Bearer",
-              BuildConfig.DRIBBBLE_CLIENT_ACCESS_TOKEN))
-          .build()
-    }
-
-    @Provides
-    @InternalApi
-    @JvmStatic
-    internal fun provideDribbbleMoshi(moshi: Moshi): Moshi {
-      return moshi.newBuilder()
-          .add(DribbbleAdapterFactory.create())
-          .add(Instant::class.java, ISO8601InstantAdapter())
-          .build()
-    }
-
-    @Provides
-    @JvmStatic
-    internal fun provideDribbbleService(@InternalApi client: Lazy<OkHttpClient>,
-        @InternalApi moshi: Moshi,
+    internal fun provideDribbbleService(client: Lazy<OkHttpClient>,
         rxJavaCallAdapterFactory: RxJava2CallAdapterFactory): DribbbleApi {
       return Retrofit.Builder().baseUrl(DribbbleApi.ENDPOINT)
           .callFactory { client.get().newCall(it) }
           .addCallAdapterFactory(rxJavaCallAdapterFactory)
-          .addConverterFactory(MoshiConverterFactory.create(moshi))
+          .addConverterFactory(DribbbleJsoupConverter.Factory())
           .validateEagerly(BuildConfig.DEBUG)
           .build()
           .create(DribbbleApi::class.java)

@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2017 Zac Sweers
+ * Copyright (c) 2018 Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,7 +17,7 @@
 package io.sweers.catchup.data
 
 import android.content.Context
-import android.support.v4.util.ArrayMap
+import androidx.collection.ArrayMap
 import io.sweers.catchup.P
 import io.sweers.catchup.data.model.ServiceData
 import io.sweers.catchup.util.injection.qualifiers.ApplicationContext
@@ -62,6 +62,7 @@ class MockDataInterceptor(@ApplicationContext private val context: Context) : In
   companion object {
 
     // TODO Generate this?
+    // Can also use arrayMapOf()
     private val SUPPORTED_ENDPOINTS = object : ArrayMap<String, ServiceData>() {
       init {
 //        put(RedditApi.HOST,

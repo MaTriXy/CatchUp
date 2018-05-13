@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2017 Zac Sweers
+ * Copyright (c) 2018 Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -41,6 +41,8 @@ import io.sweers.catchup.service.api.ServiceMetaKey
 import io.sweers.catchup.service.api.SummarizationInfo
 import io.sweers.catchup.service.api.TextService
 import io.sweers.catchup.service.hackernews.model.HackerNewsStory
+import io.sweers.catchup.serviceregistry.annotations.Meta
+import io.sweers.catchup.serviceregistry.annotations.ServiceModule
 import io.sweers.catchup.util.d
 import okhttp3.HttpUrl
 import javax.inject.Inject
@@ -104,19 +106,19 @@ internal class HackerNewsService @Inject constructor(
         .filter { it.hasChild("title") }  // Some HN items are just empty junk
         .map { HackerNewsStory.create(it) }
         .map {
-          val url = it.url()
+          val url = it.url
           with(it) {
             CatchUpItem(
-                id = id(),
-                title = title(),
-                score = "+" to score(),
-                timestamp = time(),
-                author = by(),
+                id = id,
+                title = title,
+                score = "+" to score,
+                timestamp = realTime(),
+                author = by,
                 source = url?.let { HttpUrl.parse(it)!!.host() },
-                commentCount = kids()?.size ?: 0,
-                tag = null,
+                commentCount = kids?.size ?: 0,
+                tag = realType()?.tag(nullIfStory = true),
                 itemClickUrl = url,
-                itemCommentClickUrl = "https://news.ycombinator.com/item?id=${id()}",
+                itemCommentClickUrl = "https://news.ycombinator.com/item?id=$id",
                 summarizationInfo = SummarizationInfo.from(url)
             )
           }
@@ -138,6 +140,8 @@ internal class HackerNewsService @Inject constructor(
   override fun linkHandler() = linkHandler
 }
 
+@Meta
+@ServiceModule
 @Module
 abstract class HackerNewsMetaModule {
 
@@ -153,7 +157,7 @@ abstract class HackerNewsMetaModule {
     @Provides
     @Reusable
     @JvmStatic
-    internal fun provideMediumServiceMeta() = ServiceMeta(
+    internal fun provideHackerNewsServiceMeta() = ServiceMeta(
         SERVICE_KEY,
         R.string.hn,
         R.color.hnAccent,
@@ -164,6 +168,7 @@ abstract class HackerNewsMetaModule {
   }
 }
 
+@ServiceModule
 @Module(includes = [HackerNewsMetaModule::class])
 abstract class HackerNewsModule {
 

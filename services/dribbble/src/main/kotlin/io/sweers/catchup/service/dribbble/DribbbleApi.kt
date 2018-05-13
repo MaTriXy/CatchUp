@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2017 Zac Sweers
+ * Copyright (c) 2018 Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,15 +26,19 @@ import retrofit2.http.Query
  */
 internal interface DribbbleApi {
 
-  @GET("v1/shots")
+  @GET("/shots")
   fun getPopular(
       @Query("page") page: Int,
       @Query("per_page") pageSize: Int): Single<List<Shot>>
 
+  // list=...
+  // sort=...
+  // timeframe=...
+
   companion object {
 
-    val HOST = "api.dribbble.com/"
-    val ENDPOINT = "https://" + HOST
+    const val HOST = "dribbble.com"
+    const val ENDPOINT = "https://$HOST"
   }
 
 }

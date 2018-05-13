@@ -19,16 +19,15 @@
 package io.sweers.catchup.util
 
 import android.graphics.Bitmap
-import android.support.annotation.CheckResult
-import android.support.annotation.ColorInt
-import android.support.annotation.FloatRange
-import android.support.annotation.IntDef
-import android.support.annotation.IntRange
-import android.support.v4.graphics.ColorUtils.colorToHSL
-import android.support.v7.graphics.Palette
+import androidx.annotation.CheckResult
+import androidx.annotation.ColorInt
+import androidx.annotation.FloatRange
+import androidx.annotation.IntDef
+import androidx.annotation.IntRange
+import androidx.core.graphics.ColorUtils.colorToHSL
+import androidx.palette.graphics.Palette
 import io.sweers.catchup.util.ColorUtils.Lightness
 import kotlin.annotation.AnnotationRetention.SOURCE
-
 
 /**
  * Checks if the most populous color in the given palette is dark
@@ -38,9 +37,9 @@ import kotlin.annotation.AnnotationRetention.SOURCE
  */
 @Lightness
 fun Palette.isDark(): Int {
-  val mostPopulous = getMostPopulousSwatch() ?: return ColorUtils.LIGHTNESS_UNKNOWN.toInt()
+  val mostPopulous = getMostPopulousSwatch() ?: return ColorUtils.LIGHTNESS_UNKNOWN
   return if (ColorUtils.isDark(
-      mostPopulous.hsl)) ColorUtils.IS_DARK.toInt() else ColorUtils.IS_LIGHT.toInt()
+      mostPopulous.hsl)) ColorUtils.IS_DARK else ColorUtils.IS_LIGHT
 }
 
 fun Palette.getMostPopulousSwatch(): Palette.Swatch? {
@@ -64,9 +63,9 @@ object ColorUtils {
   @IntDef(IS_LIGHT, IS_DARK, LIGHTNESS_UNKNOWN)
   annotation class Lightness
 
-  const val IS_LIGHT: Long = 0
-  const val IS_DARK: Long = 1
-  const val LIGHTNESS_UNKNOWN: Long = 2
+  const val IS_LIGHT = 0
+  const val IS_DARK = 1
+  const val LIGHTNESS_UNKNOWN = 2
 
   /**
    * Set the alpha component of `color` to be `alpha`.
@@ -101,7 +100,7 @@ object ColorUtils {
     // first try palette with a small color quant size
     val palette = Palette.from(bitmap).maximumColorCount(3).generate()
     return if (palette.swatches.size > 0) {
-      palette.isDark() == IS_DARK.toInt()
+      palette.isDark() == IS_DARK
     } else {
       // if palette failed, then check the color of the specified pixel
       isDark(bitmap.getPixel(backupPixelX, backupPixelY))

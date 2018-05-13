@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2017 Zac Sweers
+ * Copyright (c) 2018 Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -28,7 +28,6 @@ import retrofit2.http.Query
 /**
  * Models the Designer News API.
  *
- *
  * v2 docs: https://github.com/DesignerNews/dn_api_v2
  */
 internal interface DesignerNewsApi {
@@ -43,7 +42,7 @@ internal interface DesignerNewsApi {
 
   companion object {
 
-    val HOST = "www.designernews.co/api/v2/"
-    val ENDPOINT = "https://" + HOST
+    const val HOST = "www.designernews.co/api/v2/"
+    const val ENDPOINT = "https://$HOST"
   }
 }

@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2017 Zac Sweers
+ * Copyright (c) 2018 Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,12 +25,11 @@ import android.preference.CheckBoxPreference
 import android.preference.Preference
 import android.preference.PreferenceFragment
 import android.preference.PreferenceScreen
-import android.support.design.widget.Snackbar
-import android.support.v4.app.NavUtils
-import android.support.v7.widget.Toolbar
 import android.view.MenuItem
 import android.widget.Toast
+import androidx.appcompat.widget.Toolbar
 import butterknife.BindView
+import com.google.android.material.snackbar.Snackbar
 import com.google.firebase.perf.FirebasePerformance
 import com.uber.autodispose.kotlin.autoDisposable
 import dagger.Binds
@@ -107,7 +106,6 @@ class SettingsActivity : BaseActivity(), HasFragmentInjector {
       if (!resultData.isEmpty) {
         setResult(SETTINGS_RESULT_DATA, Intent().putExtras(resultData))
       }
-      NavUtils.navigateUpFromSameTask(this)
     }
     return super.onOptionsItemSelected(item)
   }
@@ -193,7 +191,7 @@ class SettingsActivity : BaseActivity(), HasFragmentInjector {
         }
         P.ReorderServicesSection.KEY -> {
           (activity as SettingsActivity).resultData.putBoolean(SERVICE_ORDER_UPDATED, true)
-          activity.startActivity(Intent(activity, OrderServicesActivity::class.java))
+          startActivity(Intent(activity, OrderServicesActivity::class.java))
           return true
         }
         P.Reports.KEY -> {
@@ -245,6 +243,11 @@ class SettingsActivity : BaseActivity(), HasFragmentInjector {
         }
         P.About.KEY -> {
           startActivity(Intent(activity, AboutActivity::class.java))
+          return true
+        }
+        P.Services.KEY -> {
+          (activity as SettingsActivity).resultData.putBoolean(SERVICE_ORDER_UPDATED, true)
+          startActivity(Intent(activity, ServiceSettingsActivity::class.java))
           return true
         }
       }

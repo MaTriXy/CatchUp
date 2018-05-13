@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2017 Zac Sweers
+ * Copyright (c) 2018 Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,7 +16,6 @@
 
 package io.sweers.catchup.service.designernews
 
-import com.serjltt.moshi.adapters.Wrapped
 import com.squareup.moshi.Moshi
 import dagger.Binds
 import dagger.Lazy
@@ -26,7 +25,6 @@ import dagger.Reusable
 import dagger.multibindings.IntoMap
 import io.reactivex.Maybe
 import io.reactivex.Observable
-import io.reactivex.functions.BiFunction
 import io.sweers.catchup.service.api.CatchUpItem
 import io.sweers.catchup.service.api.DataRequest
 import io.sweers.catchup.service.api.DataResult
@@ -36,9 +34,8 @@ import io.sweers.catchup.service.api.ServiceKey
 import io.sweers.catchup.service.api.ServiceMeta
 import io.sweers.catchup.service.api.ServiceMetaKey
 import io.sweers.catchup.service.api.TextService
-import io.sweers.catchup.service.designernews.model.Story
-import io.sweers.catchup.service.designernews.model.User
-import io.sweers.catchup.util.collect.toCommaJoinerList
+import io.sweers.catchup.serviceregistry.annotations.Meta
+import io.sweers.catchup.serviceregistry.annotations.ServiceModule
 import io.sweers.catchup.util.data.adapters.ISO8601InstantAdapter
 import okhttp3.OkHttpClient
 import org.threeten.bp.Instant
@@ -65,32 +62,20 @@ internal class DesignerNewsService @Inject constructor(
     val page = request.pageId.toInt()
     return api.getTopStories(page)
         .flatMapObservable { stories ->
-          Observable.zip(
-              Observable.fromIterable(stories),
-              Observable.fromIterable(stories)
-                  .map { it.links().user() }
-                  .toList()
-                  .flatMap { ids -> api.getUsers(ids.toCommaJoinerList()) }
-                  .onErrorReturn { (0..stories.size).map { User.NONE } }
-                  .flattenAsObservable { it },
-              // RxKotlin might help here
-              BiFunction<Story, User, StoryAndUserHolder> { story, user ->
-                StoryAndUserHolder(story, if (user === User.NONE) null else user)
-              })
+          Observable.fromIterable(stories)
         }
-        .map { (story, user) ->
+        .map { story ->
           with(story) {
             CatchUpItem(
-                id = id().toLong(),
-                title = title(),
-                score = "▲" to voteCount(),
-                timestamp = createdAt(),
-                author = user?.displayName(),
-                source = hostname(),
-                commentCount = commentCount(),
-                tag = badge(),
-                itemClickUrl = url(),
-                itemCommentClickUrl = href()
+                id = id.toLong(),
+                title = title,
+                score = "▲" to voteCount,
+                timestamp = createdAt,
+                source = hostname,
+                commentCount = commentCount,
+                tag = badge,
+                itemClickUrl = url,
+                itemCommentClickUrl = href
                     .replace("api.", "www.")
                     .replace("api/v2/", "")
             )
@@ -104,6 +89,8 @@ internal class DesignerNewsService @Inject constructor(
   override fun linkHandler() = linkHandler
 }
 
+@Meta
+@ServiceModule
 @Module
 abstract class DesignerNewsMetaModule {
 
@@ -130,6 +117,7 @@ abstract class DesignerNewsMetaModule {
   }
 }
 
+@ServiceModule
 @Module(includes = [DesignerNewsMetaModule::class])
 abstract class DesignerNewsModule {
 
@@ -146,9 +134,7 @@ abstract class DesignerNewsModule {
     @JvmStatic
     internal fun provideDesignerNewsMoshi(moshi: Moshi): Moshi {
       return moshi.newBuilder()
-          .add(DesignerNewsAdapterFactory.create())
           .add(Instant::class.java, ISO8601InstantAdapter())
-          .add(Wrapped.ADAPTER_FACTORY)
           .build()
     }
 
@@ -169,5 +155,3 @@ abstract class DesignerNewsModule {
     }
   }
 }
-
-private data class StoryAndUserHolder(val story: Story, val user: User?)

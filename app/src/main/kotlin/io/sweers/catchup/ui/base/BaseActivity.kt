@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2017 Zac Sweers
+ * Copyright (c) 2018 Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,9 +17,11 @@
 package io.sweers.catchup.ui.base
 
 import android.os.Bundle
-import android.support.annotation.CallSuper
-import android.support.annotation.CheckResult
-import android.support.v7.app.AppCompatActivity
+import android.view.MenuItem
+import androidx.annotation.CallSuper
+import androidx.annotation.CheckResult
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.NavUtils
 import com.bluelinelabs.conductor.Controller
 import com.jakewharton.rxrelay2.BehaviorRelay
 import com.uber.autodispose.LifecycleScopeProvider
@@ -104,15 +106,16 @@ abstract class BaseActivity : AppCompatActivity(),
   @Inject protected lateinit var viewContainer: ViewContainer
   @Inject lateinit var controllerInjector: DispatchingAndroidInjector<Controller>
 
-  @CheckResult override final fun lifecycle(): Observable<ActivityEvent> {
+  @CheckResult
+  override fun lifecycle(): Observable<ActivityEvent> {
     return lifecycleRelay
   }
 
-  override final fun correspondingEvents(): Function<ActivityEvent, ActivityEvent> {
+  final override fun correspondingEvents(): Function<ActivityEvent, ActivityEvent> {
     return ActivityEvent.LIFECYCLE
   }
 
-  override final fun peekLifecycle(): ActivityEvent {
+  final override fun peekLifecycle(): ActivityEvent {
     return lifecycleRelay.value
   }
 
@@ -130,6 +133,13 @@ abstract class BaseActivity : AppCompatActivity(),
   @CallSuper override fun onResume() {
     super.onResume()
     lifecycleRelay.accept(ActivityEvent.RESUME)
+  }
+
+  override fun onOptionsItemSelected(item: MenuItem): Boolean {
+    if (item.itemId == android.R.id.home) {
+      NavUtils.navigateUpFromSameTask(this)
+    }
+    return super.onOptionsItemSelected(item)
   }
 
   override fun onAttachedToWindow() {

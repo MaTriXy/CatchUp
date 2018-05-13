@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2017 Zac Sweers
+ * Copyright (c) 2018 Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -20,12 +20,6 @@ import android.content.Context
 import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
-import android.support.design.widget.Snackbar
-import android.support.v7.graphics.Palette
-import android.support.v7.graphics.Palette.Swatch
-import android.support.v7.widget.RecyclerView
-import android.support.v7.widget.RecyclerView.ViewHolder
-import android.support.v7.widget.RxViewHolder
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -33,6 +27,11 @@ import android.view.animation.OvershootInterpolator
 import android.widget.ImageView
 import android.widget.ProgressBar
 import android.widget.TextView
+import androidx.palette.graphics.Palette
+import androidx.palette.graphics.Palette.Swatch
+import androidx.recyclerview.widget.RecyclerView
+import androidx.recyclerview.widget.RecyclerView.ViewHolder
+import androidx.recyclerview.widget.RxViewHolder
 import butterknife.BindDimen
 import butterknife.BindView
 import butterknife.ButterKnife
@@ -45,6 +44,7 @@ import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
 import com.bumptech.glide.request.RequestOptions
 import com.bumptech.glide.request.target.DrawableImageViewTarget
 import com.bumptech.glide.request.transition.Transition
+import com.google.android.material.snackbar.Snackbar
 import com.squareup.moshi.JsonAdapter
 import com.squareup.moshi.JsonReader
 import com.squareup.moshi.JsonWriter
@@ -94,19 +94,23 @@ import javax.inject.Qualifier
  */
 class LicensesController : ButterKnifeController(), Scrollable {
 
-  @Inject lateinit var apolloClient: ApolloClient
+  @Inject
+  lateinit var apolloClient: ApolloClient
 
   @Inject
   @field:ForLicenses
   lateinit var moshi: Moshi
 
-  @Inject internal lateinit var linkManager: LinkManager
+  @Inject
+  internal lateinit var linkManager: LinkManager
 
   @BindDimen(R.dimen.avatar)
   @JvmField
   var dimenSize: Int = 0
-  @BindView(R.id.progress) lateinit var progressBar: ProgressBar
-  @BindView(R.id.list) lateinit var recyclerView: RecyclerView
+  @BindView(R.id.progress)
+  lateinit var progressBar: ProgressBar
+  @BindView(R.id.list)
+  lateinit var recyclerView: androidx.recyclerview.widget.RecyclerView
 
   private val adapter = Adapter()
   private lateinit var layoutManager: StickyHeadersLinearLayoutManager<Adapter>
@@ -193,7 +197,7 @@ class LicensesController : ButterKnifeController(), Scrollable {
               Rx2Apollo.from(apolloClient.query(RepositoriesByIdsQuery(it.keys.toList()))
                   .httpCachePolicy(HttpCachePolicy.CACHE_FIRST))
                   .firstOrError()
-                  .map { it.data()!!.nodes().map { it as AsRepository } },
+                  .map { it.data()!!.nodes()!!.map { it as AsRepository } },
               // Fetch the users by their IDs
               Rx2Apollo.from(apolloClient.query(ProjectOwnersByIdsQuery(it.values.distinct()))
                   .httpCachePolicy(HttpCachePolicy.CACHE_FIRST))
@@ -206,7 +210,7 @@ class LicensesController : ButterKnifeController(), Scrollable {
                         is AsUser -> with(node) { id() to (name() ?: login()) }
                         else -> throw IllegalStateException("Unrecognized node type: $node")
                       }
-                      map.put(id, name)
+                      map[id] = name
                     }
                   },
               // Map the repos and their corresponding user display name into a list of their pairs
@@ -335,9 +339,9 @@ class LicensesController : ButterKnifeController(), Scrollable {
                   }
                 }
 
-                override fun onGenerated(palette: Palette) {
+                override fun onGenerated(palette: Palette?) {
                   holder.title.setTextColor(
-                      palette.findSwatch(headerColorThresholdFun)?.rgb ?: defaultHeaderTextColor)
+                      palette?.findSwatch(headerColorThresholdFun)?.rgb ?: defaultHeaderTextColor)
                 }
               })
           title.text = item.name
@@ -434,8 +438,10 @@ private data class OssGitHubEntry(val owner: String, val name: String) {
 }
 
 private class HeaderHolder(view: View) : RxViewHolder(view) {
-  @BindView(R.id.icon) lateinit var icon: ImageView
-  @BindView(R.id.title) lateinit var title: TextView
+  @BindView(R.id.icon)
+  lateinit var icon: ImageView
+  @BindView(R.id.title)
+  lateinit var title: TextView
   private var unbinder: Unbinder? = null
 
   init {

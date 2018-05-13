@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2017 Zac Sweers
+ * Copyright (c) 2018 Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -45,6 +45,8 @@ import io.sweers.catchup.service.github.model.TrendingTimespan
 import io.sweers.catchup.service.github.type.LanguageOrder
 import io.sweers.catchup.service.github.type.LanguageOrderField
 import io.sweers.catchup.service.github.type.OrderDirection
+import io.sweers.catchup.serviceregistry.annotations.Meta
+import io.sweers.catchup.serviceregistry.annotations.ServiceModule
 import io.sweers.catchup.util.nullIfBlank
 import javax.inject.Inject
 import javax.inject.Qualifier
@@ -64,10 +66,9 @@ internal class GitHubService @Inject constructor(
   override fun meta() = serviceMeta
 
   override fun fetchPage(request: DataRequest): Maybe<DataResult> {
-    val query = SearchQuery.builder()
-        .createdSince(TrendingTimespan.WEEK.createdSince())
-        .minStars(50)
-        .build()
+    val query = SearchQuery(
+        createdSince = TrendingTimespan.WEEK.createdSince(),
+        minStars = 50)
         .toString()
 
     val searchQuery = apolloClient.query(GitHubSearchQuery(query,
@@ -124,6 +125,8 @@ internal class GitHubService @Inject constructor(
   override fun linkHandler() = linkHandler
 }
 
+@Meta
+@ServiceModule
 @Module
 abstract class GitHubMetaModule {
 
@@ -149,6 +152,7 @@ abstract class GitHubMetaModule {
   }
 }
 
+@ServiceModule
 @Module(includes = [GitHubMetaModule::class])
 abstract class GitHubModule {
 

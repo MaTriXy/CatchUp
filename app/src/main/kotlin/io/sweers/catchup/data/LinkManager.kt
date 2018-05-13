@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2017 Zac Sweers
+ * Copyright (c) 2018 Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -22,10 +22,10 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.content.pm.ResolveInfo
 import android.net.Uri
-import android.support.annotation.CheckResult
-import android.support.annotation.ColorInt
-import android.support.v4.util.ArrayMap
 import android.widget.Toast
+import androidx.annotation.CheckResult
+import androidx.annotation.ColorInt
+import androidx.collection.ArrayMap
 import com.f2prateek.rx.preferences2.Preference
 import com.uber.autodispose.kotlin.autoDisposable
 import io.reactivex.Completable
@@ -35,12 +35,12 @@ import io.reactivex.schedulers.Schedulers
 import io.sweers.catchup.P
 import io.sweers.catchup.R
 import io.sweers.catchup.injection.scopes.PerActivity
-import io.sweers.catchup.rx.doOnEmpty
 import io.sweers.catchup.service.api.LinkHandler
 import io.sweers.catchup.service.api.UrlMeta
 import io.sweers.catchup.ui.activity.MainActivity
 import io.sweers.catchup.util.customtabs.CustomTabActivityHelper
 import io.sweers.catchup.util.registerReceiver
+import io.sweers.catchup.util.rx.doOnEmpty
 import javax.inject.Inject
 
 @PerActivity
@@ -117,11 +117,11 @@ class LinkManager @Inject constructor(private val customTab: CustomTabActivityHe
         .subscribeOn(Schedulers.io())
         .observeOn(AndroidSchedulers.mainThread())
         .doOnEmpty {
-          dumbCache.put(uri.host, false)
+          dumbCache[uri.host] = false
           openCustomTab(context, uri, accentColor)
         }
         .doOnNext {
-          dumbCache.put(uri.host, true)
+          dumbCache[uri.host] = true
           context.startActivity(intent)
         }
         .ignoreElements()

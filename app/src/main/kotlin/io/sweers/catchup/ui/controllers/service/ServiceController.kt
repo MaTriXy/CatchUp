@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2017 Zac Sweers
+ * Copyright (c) 2018 Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -20,19 +20,6 @@ import android.content.Context
 import android.content.res.ColorStateList
 import android.os.Bundle
 import android.os.Parcelable
-import android.support.annotation.ColorInt
-import android.support.graphics.drawable.AnimatedVectorDrawableCompat
-import android.support.v4.content.ContextCompat
-import android.support.v4.widget.SwipeRefreshLayout
-import android.support.v7.util.DiffUtil
-import android.support.v7.util.DiffUtil.DiffResult
-import android.support.v7.widget.DefaultItemAnimator
-import android.support.v7.widget.GridLayoutManager
-import android.support.v7.widget.LinearLayoutManager
-import android.support.v7.widget.RecyclerView
-import android.support.v7.widget.RecyclerView.Adapter
-import android.support.v7.widget.RecyclerView.RecycledViewPool
-import android.support.v7.widget.RecyclerView.ViewHolder
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -40,6 +27,19 @@ import android.view.animation.OvershootInterpolator
 import android.widget.ImageView
 import android.widget.ProgressBar
 import android.widget.TextView
+import androidx.annotation.ColorInt
+import androidx.core.content.ContextCompat
+import androidx.core.os.bundleOf
+import androidx.core.view.isVisible
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.DiffUtil.DiffResult
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import androidx.recyclerview.widget.RecyclerView.Adapter
+import androidx.recyclerview.widget.RecyclerView.RecycledViewPool
+import androidx.recyclerview.widget.RecyclerView.ViewHolder
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+import androidx.vectordrawable.graphics.drawable.AnimatedVectorDrawableCompat
 import butterknife.BindView
 import butterknife.OnClick
 import com.apollographql.apollo.exception.ApolloException
@@ -49,6 +49,7 @@ import com.uber.autodispose.kotlin.autoDisposable
 import dagger.Subcomponent
 import dagger.android.AndroidInjector
 import io.reactivex.android.schedulers.AndroidSchedulers
+import io.sweers.catchup.BuildConfig
 import io.sweers.catchup.GlideApp
 import io.sweers.catchup.R
 import io.sweers.catchup.analytics.trace
@@ -68,12 +69,12 @@ import io.sweers.catchup.ui.base.ButterKnifeController
 import io.sweers.catchup.ui.base.CatchUpItemViewHolder
 import io.sweers.catchup.ui.base.DataLoadingSubject
 import io.sweers.catchup.ui.base.DataLoadingSubject.DataLoadingCallbacks
+import io.sweers.catchup.ui.controllers.SmmryController
 import io.sweers.catchup.ui.controllers.service.LoadResult.DiffResultData
 import io.sweers.catchup.ui.controllers.service.LoadResult.NewData
 import io.sweers.catchup.util.applyOn
 import io.sweers.catchup.util.e
 import io.sweers.catchup.util.hide
-import io.sweers.catchup.util.isVisible
 import io.sweers.catchup.util.show
 import io.sweers.catchup.util.w
 import jp.wasabeef.recyclerview.animators.FadeInUpAnimator
@@ -122,21 +123,23 @@ class ServiceController : ButterKnifeController,
   companion object {
     const val ARG_SERVICE_KEY = "serviceKey"
     fun newInstance(serviceKey: String) =
-        ServiceController(Bundle().apply {
-          putString(
-              ARG_SERVICE_KEY,
-              serviceKey)
-        })
+        ServiceController(bundleOf(ARG_SERVICE_KEY to serviceKey))
   }
 
-  @BindView(R.id.error_container) lateinit var errorView: View
-  @BindView(R.id.error_message) lateinit var errorTextView: TextView
-  @BindView(R.id.error_image) lateinit var errorImage: ImageView
-  @BindView(R.id.list) lateinit var recyclerView: RecyclerView
-  @BindView(R.id.progress) lateinit var progress: ProgressBar
-  @BindView(R.id.refresh) lateinit var swipeRefreshLayout: SwipeRefreshLayout
+  @BindView(R.id.error_container)
+  lateinit var errorView: View
+  @BindView(R.id.error_message)
+  lateinit var errorTextView: TextView
+  @BindView(R.id.error_image)
+  lateinit var errorImage: ImageView
+  @BindView(R.id.list)
+  lateinit var recyclerView: androidx.recyclerview.widget.RecyclerView
+  @BindView(R.id.progress)
+  lateinit var progress: ProgressBar
+  @BindView(R.id.refresh)
+  lateinit var swipeRefreshLayout: SwipeRefreshLayout
 
-  private lateinit var layoutManager: LinearLayoutManager
+  private lateinit var layoutManager: androidx.recyclerview.widget.LinearLayoutManager
   private lateinit var adapter: DisplayableItemAdapter<out DisplayableItem, ViewHolder>
   private var currentPage: String? = null
   private var nextPage: String? = null
@@ -145,14 +148,17 @@ class ServiceController : ButterKnifeController,
   private var moreDataAvailable = true
   private var dataLoading = false
   private var pendingRVState: Parcelable? = null
-  private val defaultItemAnimator = DefaultItemAnimator()
+  private val defaultItemAnimator = androidx.recyclerview.widget.DefaultItemAnimator()
 
   @field:TextViewPool
-  @Inject lateinit var textViewPool: RecycledViewPool
+  @Inject
+  lateinit var textViewPool: RecycledViewPool
   @field:VisualViewPool
-  @Inject lateinit var visualViewPool: RecycledViewPool
+  @Inject
+  lateinit var visualViewPool: RecycledViewPool
   @field:FinalServices
-  @Inject lateinit var services: Map<String, @JvmSuppressWildcards Provider<Service>>
+  @Inject
+  lateinit var services: Map<String, @JvmSuppressWildcards Provider<Service>>
   private val service: Service by lazy {
     args[ARG_SERVICE_KEY].let {
       services[it]?.get() ?: throw IllegalArgumentException("No service provided for $it!")
@@ -182,15 +188,16 @@ class ServiceController : ButterKnifeController,
   }
 
   private fun createLayoutManager(context: Context,
-      adapter: DisplayableItemAdapter<*, *>): LinearLayoutManager {
+      adapter: DisplayableItemAdapter<*, *>): androidx.recyclerview.widget.LinearLayoutManager {
     return if (service.meta().isVisual) {
-      GridLayoutManager(context, 2).apply {
-        spanSizeLookup = object : GridLayoutManager.SpanSizeLookup() {
+      androidx.recyclerview.widget.GridLayoutManager(context, 2).apply {
+        spanSizeLookup = object : androidx.recyclerview.widget.GridLayoutManager.SpanSizeLookup() {
           override fun getSpanSize(position: Int) = adapter.getItemColumnSpan(position)
         }
       }
     } else {
-      LinearLayoutManager(activity, LinearLayoutManager.VERTICAL, false)
+      androidx.recyclerview.widget.LinearLayoutManager(activity,
+          androidx.recyclerview.widget.LinearLayoutManager.VERTICAL, false)
     }
   }
 
@@ -209,15 +216,17 @@ class ServiceController : ButterKnifeController,
     } else {
       return TextAdapter { item, holder ->
         service.bindItemView(item, holder)
-        item.summarizationInfo?.let {
-          // We're not supporting this for now since it's not ready yet
-//          holder.itemLongClicks()
-//              .autoDisposable(this)
-//              .subscribe(SmmryController.showFor<Any>(controller = this,
-//                  service = service,
-//                  title = item.title,
-//                  id = item.id.toString(),
-//                  info = it))
+        if (BuildConfig.DEBUG) {
+          item.summarizationInfo?.let {
+            // We're not supporting this for now since it's not ready yet
+            holder.itemLongClicks()
+                .autoDisposable(this)
+                .subscribe(SmmryController.showFor<Any>(controller = this,
+                    service = service,
+                    title = item.title,
+                    id = item.id.toString(),
+                    info = it))
+          }
         }
       }
     }
@@ -243,9 +252,9 @@ class ServiceController : ButterKnifeController,
           }
         })
     if (service.meta().isVisual) {
-      recyclerView.recycledViewPool = visualViewPool
+      recyclerView.setRecycledViewPool(visualViewPool)
     } else {
-      recyclerView.recycledViewPool = textViewPool
+      recyclerView.setRecycledViewPool(textViewPool)
     }
     recyclerView.adapter = adapter
     if (!service.meta().isVisual) {
@@ -256,13 +265,15 @@ class ServiceController : ButterKnifeController,
     }
   }
 
-  @OnClick(R.id.retry_button) internal fun onRetry() {
+  @OnClick(R.id.retry_button)
+  internal fun onRetry() {
     errorView.hide()
     progress.show()
     onRefresh()
   }
 
-  @OnClick(R.id.error_image) internal fun onErrorClick(imageView: ImageView) {
+  @OnClick(R.id.error_image)
+  internal fun onErrorClick(imageView: ImageView) {
     (imageView.drawable as AnimatedVectorDrawableCompat).start()
   }
 
@@ -280,7 +291,7 @@ class ServiceController : ButterKnifeController,
       if (currentPage != service.meta().firstPageKey) {
         putString("currentPage", currentPage)
       }
-      putParcelable("layoutManagerState", recyclerView.layoutManager.onSaveInstanceState())
+      putParcelable("layoutManagerState", recyclerView.layoutManager?.onSaveInstanceState())
     }
     super.onSaveViewState(view, outState)
   }
@@ -300,7 +311,7 @@ class ServiceController : ButterKnifeController,
   }
 
   private fun loadData(fromRefresh: Boolean = false) {
-    if (!recyclerView.isVisible()) {
+    if (!recyclerView.isVisible) {
       progress.show()
     }
     if (fromRefresh || adapter.itemCount == 0) {
@@ -403,7 +414,7 @@ class ServiceController : ButterKnifeController,
               }
             }
             pendingRVState?.let {
-              recyclerView.layoutManager.onRestoreInstanceState(it)
+              recyclerView.layoutManager?.onRestoreInstanceState(it)
               pendingRVState = null
             }
           }

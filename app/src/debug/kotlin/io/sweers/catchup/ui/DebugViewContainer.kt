@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2017 Zac Sweers
+ * Copyright (c) 2018 Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,24 +24,28 @@ import android.os.PowerManager
 import android.os.PowerManager.ACQUIRE_CAUSES_WAKEUP
 import android.os.PowerManager.FULL_WAKE_LOCK
 import android.os.PowerManager.ON_AFTER_RELEASE
-import android.support.v4.view.GravityCompat
-import android.support.v4.widget.DrawerLayout
 import android.view.ContextThemeWrapper
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+import androidx.core.content.systemService
+import androidx.core.view.GravityCompat
+import androidx.core.view.doOnLayout
+import androidx.drawerlayout.widget.DrawerLayout
+import androidx.drawerlayout.widget.DrawerLayout.DrawerListener
 import butterknife.BindView
 import com.getkeepsafe.taptargetview.TapTarget
 import com.jakewharton.madge.MadgeFrameLayout
-import com.jakewharton.rxbinding2.support.v4.widget.drawerOpen
 import com.jakewharton.scalpel.ScalpelFrameLayout
 import com.mattprecious.telescope.TelescopeLayout
 import com.uber.autodispose.android.ViewScopeProvider
 import com.uber.autodispose.kotlin.autoDisposable
 import dagger.Lazy
 import io.reactivex.Completable
+import io.reactivex.Maybe
+import io.reactivex.android.MainThreadDisposable
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.schedulers.Schedulers
@@ -56,8 +60,6 @@ import io.sweers.catchup.ui.base.ActivityEvent
 import io.sweers.catchup.ui.base.BaseActivity
 import io.sweers.catchup.ui.bugreport.BugReportLens
 import io.sweers.catchup.ui.debug.DebugView
-import io.sweers.catchup.util.getSystemService
-import io.sweers.catchup.util.onLaidOut
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeUnit.SECONDS
@@ -197,12 +199,12 @@ internal class DebugViewContainer @Inject constructor(
       } else {
         activity.window
             .addFlags(FLAG_SHOW_WHEN_LOCKED)
-        val power = activity.getSystemService<PowerManager>()
+        val power = activity.systemService<PowerManager>()
         power.newWakeLock(FULL_WAKE_LOCK or ACQUIRE_CAUSES_WAKEUP or ON_AFTER_RELEASE,
-            "wakeup!").run {
-              acquire(TimeUnit.MILLISECONDS.convert(1, SECONDS))
-              release()
-            }
+            "CatchUp:wakeup!").run {
+          acquire(TimeUnit.MILLISECONDS.convert(1, SECONDS))
+          release()
+        }
       }
     }
   }
@@ -234,13 +236,39 @@ class DrawerTapTarget(
   }
 
   override fun onReady(runnable: Runnable) {
-    drawerLayout.onLaidOut {
+    // Use `it` eventually: https://github.com/android/android-ktx/pull/177
+    drawerLayout.doOnLayout {
       if (drawerLayout.isDrawerOpen(gravity)) {
         delegateTarget.onReady(runnable)
       } else {
-        drawerLayout.drawerOpen(gravity)
-            .filter { it }
-            .firstElement()
+        // TODO Jetifier bug. Want to use RxBinding here
+        Maybe.create<Unit> { e ->
+          val listener = object : MainThreadDisposable(), DrawerListener {
+            override fun onDrawerStateChanged(newState: Int) {
+              // Noop
+            }
+
+            override fun onDrawerSlide(drawerView: View, slideOffset: Float) {
+              // Noop
+            }
+
+            override fun onDrawerClosed(drawerView: View) {
+              // Noop
+            }
+
+            override fun onDispose() {
+              drawerLayout.removeDrawerListener(this)
+            }
+
+            override fun onDrawerOpened(drawerView: View) {
+              if (!isDisposed) {
+                e.onSuccess(Unit)
+              }
+            }
+          }
+          e.setDisposable(listener)
+          drawerLayout.addDrawerListener(listener)
+        }
             .autoDisposable(ViewScopeProvider.from(drawerLayout))
             .subscribe {
               delegateTarget.onReady(runnable)

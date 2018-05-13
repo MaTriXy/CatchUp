@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2017 Zac Sweers
+ * Copyright (c) 2018 Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,14 +21,15 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
-import android.net.Uri
 import android.os.Build
 import android.os.Build.VERSION
 import android.os.Build.VERSION_CODES
-import android.support.v4.app.NotificationCompat
-import android.support.v4.content.ContextCompat
 import android.util.DisplayMetrics
 import android.widget.Toast
+import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
+import androidx.core.content.systemService
+import androidx.core.net.toUri
 import com.mattprecious.telescope.Lens
 import com.uber.autodispose.kotlin.autoDisposable
 import io.reactivex.Single
@@ -43,7 +44,6 @@ import io.sweers.catchup.injection.scopes.PerActivity
 import io.sweers.catchup.ui.base.BaseActivity
 import io.sweers.catchup.ui.bugreport.BugReportDialog.ReportListener
 import io.sweers.catchup.ui.bugreport.BugReportView.Report
-import io.sweers.catchup.util.getSystemService
 import okhttp3.MediaType
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
@@ -139,7 +139,7 @@ internal class BugReportLens @Inject constructor(private val activity: Activity,
 
   private fun uploadIssue(report: Report, body: StringBuilder, logs: File?) {
     val channelId = "bugreports"
-    val notificationManager = activity.getSystemService<NotificationManager>()
+    val notificationManager = activity.systemService<NotificationManager>()
     if (VERSION.SDK_INT >= VERSION_CODES.O) {
       val channels = notificationManager.notificationChannels
       if (channels.none { it.id == channelId }) {
@@ -219,11 +219,12 @@ internal class BugReportLens @Inject constructor(private val activity: Activity,
                   color = ContextCompat.getColor(activity, R.color.colorAccent)
                   setContentTitle("Bug report successfully uploaded")
                   setContentText(it)
-                  val resultIntent = Intent(Intent.ACTION_VIEW, Uri.parse(it))
+                  val uri = it.toUri()
+                  val resultIntent = Intent(Intent.ACTION_VIEW, uri)
                   setContentIntent(PendingIntent.getActivity(activity, 0, resultIntent, 0))
                   setAutoCancel(true)
 
-                  val shareIntent = Intent(Intent.ACTION_SEND, Uri.parse(it))
+                  val shareIntent = Intent(Intent.ACTION_SEND, uri)
                   shareIntent.type = "text/plain"
                   shareIntent.putExtra(Intent.EXTRA_TEXT, it)
                   shareIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK

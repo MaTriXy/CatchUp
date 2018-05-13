@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2017 Zac Sweers
+ * Copyright (c) 2018 Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,49 +19,44 @@ package io.sweers.catchup.service.imgur.model
 import android.app.ActivityManager
 import android.content.Context
 import android.content.res.Configuration
-import com.google.auto.value.AutoValue
+import androidx.core.content.systemService
 import com.squareup.moshi.Json
-import com.squareup.moshi.JsonAdapter
-import com.squareup.moshi.Moshi
-import io.sweers.catchup.util.getSystemService
+import com.squareup.moshi.JsonClass
 import org.threeten.bp.Instant
 
-
-@AutoValue
-internal abstract class Image {
-
-  abstract fun id(): String
-  abstract fun title(): String
-  abstract fun datetime(): Instant
-  abstract fun cover(): String?
-  abstract fun link(): String
-  abstract fun downs(): Int?
-  abstract fun type(): String?
-  abstract fun ups(): Int?
-  abstract fun score(): Int?
-  @Json(name = "account_url") abstract fun accountUrl(): String?
-  @Json(name = "account_id") abstract fun accountId(): String?
+@JsonClass(generateAdapter = true)
+internal data class Image(
+    val id: String,
+    val title: String,
+    val datetime: Instant,
+    val cover: String?,
+    val link: String,
+    val downs: Int?,
+    val type: String?,
+    val ups: Int?,
+    val score: Int?,
+    @Json(name = "account_url") val accountUrl: String?,
+    @Json(name = "account_id") val accountId: String?) {
 
   fun resolveScore(): Int {
-    score()?.let { return it }
-    ups()?.let { ups ->
-      downs()?.let {
+    score?.let { return it }
+    ups?.let { ups ->
+      downs?.let {
         return ups - it
       }
     }
     return 0
   }
 
-  fun resolveClickLink() = link()
+  fun resolveClickLink() = link
 
   fun resolveDisplayLink(size: String = "l"): String {
-    cover()?.let { return "https://i.imgur.com/$it$size.webp" }
+    cover?.let { return "https://i.imgur.com/$it$size.webp" }
     val type = resolveType()
-    return "https://i.imgur.com/${id()}$size.$type"
+    return "https://i.imgur.com/$id$size.$type"
   }
 
   private fun resolveType(): String? {
-    val type = type()
     return when (type) {
       null -> null
       "image/gif" -> "gif"
@@ -79,7 +74,7 @@ internal abstract class Image {
 //      l	Large Thumbnail	640x640	Yes
 //      h	Huge Thumbnail	1024x1024	Yes
       val smallLayout = context.resources.configuration.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK == Configuration.SCREENLAYOUT_SIZE_SMALL
-      val lowRam = context.getSystemService<ActivityManager>().isLowRamDevice
+      val lowRam = context.systemService<ActivityManager>().isLowRamDevice
       return if (lowRam) {
         if (smallLayout) {
           "t"
@@ -90,10 +85,5 @@ internal abstract class Image {
         "l"
       }
     }
-
-    @JvmStatic
-    fun jsonAdapter(moshi: Moshi): JsonAdapter<Image> =
-        AutoValue_Image.MoshiJsonAdapter(moshi)
   }
-
 }

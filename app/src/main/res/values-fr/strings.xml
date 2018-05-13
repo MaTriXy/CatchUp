@@ -1,11 +1,11 @@
 <!--
-  ~ Copyright (c) 2017 Zac Sweers
+  ~ Copyright (c) 2018 Zac Sweers
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~ you may not use this file except in compliance with the License.
   ~ You may obtain a copy of the License at
   ~
-  ~    http://www.apache.org/licenses/LICENSE-2.0
+  ~   http://www.apache.org/licenses/LICENSE-2.0
   ~
   ~ Unless required by applicable law or agreed to in writing, software
   ~ distributed under the License is distributed on an "AS IS" BASIS,
@@ -41,7 +41,8 @@
     <string name="unknown_issue">Erreur inconnue</string>
     <string name="about_description">Une application pour rester à jour sur divers sujets.</string>
     <string name="about_version">Version %1s</string>
-    <string name="about_attribution">Par [Zac Sweers](https://twitter.com/pandanomic) — [Code source](https://github.com/hzsweers/CatchUp)</string>
+    <string name="about_by">Par</string>
+    <string name="about_source_code">Code source</string>
     <string name="icon_attribution">Icône par Michael Cook</string>
     <string name="changelog_error">Impossible de charger le changelog.</string>
     <string name="licenses_error">Impossible de charger les licences open source.</string>

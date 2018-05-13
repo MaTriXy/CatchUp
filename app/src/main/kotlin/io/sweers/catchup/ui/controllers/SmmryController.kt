@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2017 Zac Sweers
+ * Copyright (c) 2018 Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,31 +19,33 @@ package io.sweers.catchup.ui.controllers
 import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
 import android.annotation.SuppressLint
-import android.arch.persistence.room.Dao
-import android.arch.persistence.room.Entity
-import android.arch.persistence.room.Insert
-import android.arch.persistence.room.OnConflictStrategy
-import android.arch.persistence.room.PrimaryKey
-import android.arch.persistence.room.Query
 import android.content.Context
 import android.graphics.ColorFilter
 import android.os.Bundle
-import android.support.annotation.ColorInt
-import android.support.annotation.Keep
-import android.support.v4.content.ContextCompat
-import android.support.v4.widget.NestedScrollView
 import android.text.TextUtils
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import android.widget.Toast
+import androidx.annotation.ColorInt
+import androidx.annotation.Keep
+import androidx.core.content.ContextCompat
+import androidx.core.view.isGone
+import androidx.core.view.isVisible
+import androidx.core.widget.NestedScrollView
+import androidx.room.Dao
+import androidx.room.Entity
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.PrimaryKey
+import androidx.room.Query
 import butterknife.BindView
 import com.airbnb.lottie.LottieAnimationView
 import com.airbnb.lottie.LottieProperty
 import com.airbnb.lottie.SimpleColorFilter
 import com.airbnb.lottie.model.KeyPath
-import com.airbnb.lottie.value.LottieStaticValueCallback
+import com.airbnb.lottie.value.LottieValueCallback
 import com.bluelinelabs.conductor.Controller
 import com.bluelinelabs.conductor.RouterTransaction
 import com.bluelinelabs.conductor.changehandler.VerticalChangeHandler
@@ -87,8 +89,6 @@ import io.sweers.catchup.ui.widget.ElasticDragDismissFrameLayout
 import io.sweers.catchup.ui.widget.ElasticDragDismissFrameLayout.ElasticDragDismissCallback
 import io.sweers.catchup.util.e
 import io.sweers.catchup.util.hide
-import io.sweers.catchup.util.isGone
-import io.sweers.catchup.util.isVisible
 import io.sweers.catchup.util.show
 import io.sweers.catchup.util.w
 import okhttp3.OkHttpClient
@@ -106,12 +106,12 @@ class SmmryController : ButterKnifeController {
 
   companion object {
 
-    private val ID_TITLE = "smmrycontroller.title"
-    private val ID_ID = "smmrycontroller.id"
-    private val ID_VALUE = "smmrycontroller.value"
-    private val ID_TYPE = "smmrycontroller.type"
-    private val ID_ACCENT = "smmrycontroller.accent"
-    private val ID_LOADED = "smmrycontroller.loaded"
+    private const val ID_TITLE = "smmrycontroller.title"
+    private const val ID_ID = "smmrycontroller.id"
+    private const val ID_VALUE = "smmrycontroller.value"
+    private const val ID_TYPE = "smmrycontroller.type"
+    private const val ID_ACCENT = "smmrycontroller.accent"
+    private const val ID_LOADED = "smmrycontroller.loaded"
 
     fun <T> showFor(controller: Controller,
         service: Service,
@@ -128,23 +128,33 @@ class SmmryController : ButterKnifeController {
     }
   }
 
-  @Inject lateinit var smmryService: SmmryService
+  @Inject
+  lateinit var smmryService: SmmryService
   @field:ForSmmry
-  @Inject lateinit var moshi: Moshi
-  @Inject lateinit var smmryDao: SmmryDao
+  @Inject
+  lateinit var moshi: Moshi
+  @Inject
+  lateinit var smmryDao: SmmryDao
 
-  @BindView(R.id.loading_view) lateinit var loadingView: View
-  @BindView(R.id.smmry_loading) lateinit var lottieView: LottieAnimationView
-  @BindView(R.id.content_container) lateinit var content: NestedScrollView
-  @BindView(R.id.tags) lateinit var tags: TextView
-  @BindView(R.id.title) lateinit var title: TextView
-  @BindView(R.id.summary) lateinit var summary: TextView
+  @BindView(R.id.loading_view)
+  lateinit var loadingView: View
+  @BindView(R.id.smmry_loading)
+  lateinit var lottieView: LottieAnimationView
+  @BindView(R.id.content_container)
+  lateinit var content: NestedScrollView
+  @BindView(R.id.tags)
+  lateinit var tags: TextView
+  @BindView(R.id.title)
+  lateinit var title: TextView
+  @BindView(R.id.summary)
+  lateinit var summary: TextView
   @BindView(R.id.drag_dismiss_layout)
   lateinit var dragDismissFrameLayout: ElasticDragDismissFrameLayout
 
   private lateinit var id: String
   private lateinit var info: SummarizationInfo
-  @ColorInt private var accentColor: Int = 0
+  @ColorInt
+  private var accentColor: Int = 0
   private lateinit var inputTitle: String
   private var alreadyLoaded = false
 
@@ -200,7 +210,7 @@ class SmmryController : ButterKnifeController {
     if (!alreadyLoaded) {
       lottieView.addValueCallback<ColorFilter>(KeyPath("**"),
           LottieProperty.COLOR_FILTER,
-          LottieStaticValueCallback(SimpleColorFilter(accentColor)))
+          LottieValueCallback<ColorFilter>(SimpleColorFilter(accentColor)))
     } else {
       loadingView.hide()
       content.show()
@@ -227,7 +237,7 @@ class SmmryController : ButterKnifeController {
                 is IncorrectVariables -> "Smmry invalid input - ${smmryResponse.message}"
                 is ApiRejection -> "Smmry API error - ${smmryResponse.message}"
                 is SummarizationError -> "Smmry summarization error - ${smmryResponse.message}"
-                is UnknownErrorCode -> "Unknown error :("
+                UnknownErrorCode -> "Unknown error :("
                 else -> TODO("Placeholder because I've already checked for this")
               }
               Toast.makeText(activity, message, Toast.LENGTH_LONG).show()
@@ -270,7 +280,7 @@ class SmmryController : ButterKnifeController {
       NONE -> Single.just(Success.just(inputTitle, info.value))
     }
     return summarizer.doOnSuccess {
-      if (it !is UnknownErrorCode) {
+      if (it != UnknownErrorCode) {
         Completable
             .fromAction {
               smmryDao.putItem(SmmryStorageEntry(id,
@@ -287,10 +297,10 @@ class SmmryController : ButterKnifeController {
   }
 
   private fun showSummary(smmry: Success) {
-    if (smmry.keywords() != null) {
+    if (smmry.keywords != null) {
       tags.setTextColor(accentColor)
       tags.text = TextUtils.join("  —  ",
-          Observable.fromIterable(smmry.keywords()!!)
+          Observable.fromIterable(smmry.keywords)
               .map { s ->
                 s.trim { it <= ' ' }
                     .toUpperCase()
@@ -301,14 +311,14 @@ class SmmryController : ButterKnifeController {
     } else {
       tags.hide()
     }
-    var smmryTitle = smmry.title()
+    var smmryTitle = smmry.title
     if (TextUtils.isEmpty(smmryTitle)) {
       smmryTitle = inputTitle
     }
     title.text = smmryTitle
-    summary.text = smmry.content()
+    summary.text = smmry.content
         .replace("[BREAK]", "\n\n")
-    if (loadingView.isVisible()) {
+    if (loadingView.isVisible) {
       loadingView.animate()
           .alpha(0f)
           .setListener(object : AnimatorListenerAdapter() {
@@ -319,7 +329,7 @@ class SmmryController : ButterKnifeController {
             }
           })
     }
-    if (content.isGone()) {
+    if (content.isGone) {
       content.alpha = 0f
       content.show()
       content.animate()

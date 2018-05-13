@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2017 Zac Sweers
+ * Copyright (c) 2018 Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,7 +16,6 @@
 
 package io.sweers.catchup.service.medium
 
-import com.serjltt.moshi.adapters.Wrapped
 import com.squareup.moshi.Moshi
 import dagger.Binds
 import dagger.Lazy
@@ -38,6 +37,8 @@ import io.sweers.catchup.service.api.SummarizationInfo
 import io.sweers.catchup.service.api.TextService
 import io.sweers.catchup.service.medium.model.MediumPost
 import io.sweers.catchup.service.medium.model.Post
+import io.sweers.catchup.serviceregistry.annotations.Meta
+import io.sweers.catchup.serviceregistry.annotations.ServiceModule
 import io.sweers.catchup.util.data.adapters.EpochInstantJsonAdapter
 import io.sweers.inspector.Inspector
 import okhttp3.OkHttpClient
@@ -65,29 +66,28 @@ internal class MediumService @Inject constructor(
   override fun fetchPage(request: DataRequest): Maybe<DataResult> {
     return api.top()
         .concatMapEager { references ->
-          Observable.fromIterable<Post>(references.post().values)
+          Observable.fromIterable<Post>(references.post.values)
               .map { post ->
-                MediumPost.builder()
-                    .post(post)
-                    .user(references.user()[post.creatorId()]
-                        ?: throw IllegalStateException("Missing user on post!"))
-                    .collection(references.collection()[post.homeCollectionId()])
-                    .build()
+                MediumPost(
+                    post = post,
+                    user = references.user[post.creatorId]
+                        ?: throw IllegalStateException("Missing user on post!"),
+                    collection = references.collection[post.homeCollectionId])
               }
         }
         .map {
           with(it) {
             val url = constructUrl()
             CatchUpItem(
-                id = post().id().hashCode().toLong(),
-                title = post().title(),
+                id = post.id.hashCode().toLong(),
+                title = post.title,
                 score =
                 "\u2665\uFE0E" // Because lol: https://code.google.com/p/android/issues/detail?id=231068
-                    to post().virtuals().recommends(),
-                timestamp = post().createdAt(),
-                author = user().name(),
-                commentCount = post().virtuals().responsesCreatedCount(),
-                tag = collection()?.name(),
+                    to post.virtuals.recommends,
+                timestamp = post.createdAt,
+                author = user.name,
+                commentCount = post.virtuals.responsesCreatedCount,
+                tag = collection?.name,
                 itemClickUrl = url,
                 itemCommentClickUrl = constructCommentsUrl(),
                 summarizationInfo = SummarizationInfo.from(url)
@@ -102,6 +102,8 @@ internal class MediumService @Inject constructor(
   override fun linkHandler() = linkHandler
 }
 
+@Meta
+@ServiceModule
 @Module
 abstract class MediumMetaModule {
 
@@ -127,6 +129,7 @@ abstract class MediumMetaModule {
   }
 }
 
+@ServiceModule
 @Module(includes = [MediumMetaModule::class])
 abstract class MediumModule {
 
@@ -167,19 +170,13 @@ abstract class MediumModule {
     @JvmStatic
     internal fun provideMediumMoshi(moshi: Moshi): Moshi {
       return moshi.newBuilder()
-          .add(MediumModels.createMoshiAdapterFactory())
           .add(Instant::class.java, EpochInstantJsonAdapter(MILLISECONDS))
-          .add(Wrapped.ADAPTER_FACTORY)
           .build()
     }
 
     @Provides
     @JvmStatic
-    internal fun provideInspector(): Inspector {
-      return Inspector.Builder()
-          .add(MediumModels.createValidatorFactory())
-          .build()
-    }
+    internal fun provideInspector() = Inspector.Builder().build()
 
     @Provides
     @JvmStatic

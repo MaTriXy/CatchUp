@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2017 Zac Sweers
+ * Copyright (c) 2018 Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,10 +19,10 @@ package io.sweers.catchup.ui.logs
 import android.content.Context
 import android.content.DialogInterface
 import android.content.Intent
-import android.net.Uri
-import android.support.v7.app.AlertDialog
 import android.widget.ListView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
+import androidx.core.net.toUri
 import io.reactivex.SingleObserver
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
@@ -79,7 +79,7 @@ class LogsDialog(context: Context, private val lumberYard: LumberYard) : AlertDi
           override fun onSuccess(file: File) {
             val sendIntent = Intent(Intent.ACTION_SEND)
             sendIntent.type = "text/plain"
-            sendIntent.putExtra(Intent.EXTRA_STREAM, Uri.fromFile(file))
+            sendIntent.putExtra(Intent.EXTRA_STREAM, file.toUri())
             context.maybeStartChooser(sendIntent)
           }
 

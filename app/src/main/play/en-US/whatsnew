@@ -1,1 +1,1 @@
-* Fix pagination not working
+* **Fix:** Accidental proguard issue that would break HackerNews

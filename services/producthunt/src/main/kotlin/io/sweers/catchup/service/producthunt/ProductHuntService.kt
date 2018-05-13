@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2017 Zac Sweers
+ * Copyright (c) 2018 Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,7 +16,6 @@
 
 package io.sweers.catchup.service.producthunt
 
-import com.serjltt.moshi.adapters.Wrapped
 import com.squareup.moshi.Moshi
 import dagger.Binds
 import dagger.Lazy
@@ -34,6 +33,8 @@ import io.sweers.catchup.service.api.ServiceKey
 import io.sweers.catchup.service.api.ServiceMeta
 import io.sweers.catchup.service.api.ServiceMetaKey
 import io.sweers.catchup.service.api.TextService
+import io.sweers.catchup.serviceregistry.annotations.Meta
+import io.sweers.catchup.serviceregistry.annotations.ServiceModule
 import io.sweers.catchup.util.data.adapters.ISO8601InstantAdapter
 import io.sweers.catchup.util.network.AuthInterceptor
 import okhttp3.OkHttpClient
@@ -64,15 +65,15 @@ internal class ProductHuntService @Inject constructor(
         .map {
           with(it) {
             CatchUpItem(
-                id = id(),
-                title = name(),
-                score = "▲" to votesCount(),
-                timestamp = createdAt(),
-                author = user().name(),
+                id = id,
+                title = name,
+                score = "▲" to votesCount,
+                timestamp = createdAt,
+                author = user.name,
                 tag = firstTopic,
-                commentCount = commentsCount(),
-                itemClickUrl = redirectUrl(),
-                itemCommentClickUrl = discussionUrl()
+                commentCount = commentsCount,
+                itemClickUrl = redirectUrl,
+                itemCommentClickUrl = discussionUrl
             )
           }
         }
@@ -84,6 +85,8 @@ internal class ProductHuntService @Inject constructor(
   override fun linkHandler() = linkHandler
 }
 
+@Meta
+@ServiceModule
 @Module
 abstract class ProductHuntMetaModule {
 
@@ -110,6 +113,7 @@ abstract class ProductHuntMetaModule {
   }
 }
 
+@ServiceModule
 @Module(includes = [ProductHuntMetaModule::class])
 abstract class ProductHuntModule {
 
@@ -128,7 +132,7 @@ abstract class ProductHuntModule {
         client: OkHttpClient): OkHttpClient {
       return client.newBuilder()
           .addInterceptor(AuthInterceptor("Bearer",
-              BuildConfig.PROCUCT_HUNT_DEVELOPER_TOKEN))
+              BuildConfig.PRODUCT_HUNT_DEVELOPER_TOKEN))
           .build()
     }
 
@@ -137,9 +141,7 @@ abstract class ProductHuntModule {
     @JvmStatic
     internal fun provideProductHuntMoshi(moshi: Moshi): Moshi {
       return moshi.newBuilder()
-          .add(ProductHuntAdapterFactory.create())
           .add(Instant::class.java, ISO8601InstantAdapter())
-          .add(Wrapped.ADAPTER_FACTORY)
           .build()
     }
 

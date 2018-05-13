@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2017 Zac Sweers
+ * Copyright (c) 2018 Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,9 +17,10 @@
 package io.sweers.catchup.ui.activity
 
 import android.app.Activity
+import android.content.SharedPreferences
 import android.os.Bundle
-import android.support.v7.widget.RecyclerView.RecycledViewPool
 import android.view.ViewGroup
+import androidx.recyclerview.widget.RecyclerView.RecycledViewPool
 import butterknife.BindView
 import butterknife.ButterKnife
 import com.bluelinelabs.conductor.Conductor
@@ -37,14 +38,7 @@ import io.sweers.catchup.injection.scopes.PerActivity
 import io.sweers.catchup.service.api.LinkHandler
 import io.sweers.catchup.service.api.Service
 import io.sweers.catchup.service.api.ServiceMeta
-import io.sweers.catchup.service.designernews.DesignerNewsModule
-import io.sweers.catchup.service.dribbble.DribbbleModule
-import io.sweers.catchup.service.github.GitHubModule
-import io.sweers.catchup.service.hackernews.HackerNewsModule
-import io.sweers.catchup.service.medium.MediumModule
-import io.sweers.catchup.service.producthunt.ProductHuntModule
-import io.sweers.catchup.service.reddit.RedditModule
-import io.sweers.catchup.service.slashdot.SlashdotModule
+import io.sweers.catchup.serviceregistry.ResolvedCatchUpServiceRegistry
 import io.sweers.catchup.ui.base.BaseActivity
 import io.sweers.catchup.ui.controllers.PagerController
 import io.sweers.catchup.ui.controllers.service.StorageBackedService
@@ -55,11 +49,15 @@ import javax.inject.Qualifier
 
 class MainActivity : BaseActivity() {
 
-  @Inject internal lateinit var customTab: CustomTabActivityHelper
-  @Inject internal lateinit var linkManager: LinkManager
-  @Inject internal lateinit var syllabus: Syllabus
+  @Inject
+  internal lateinit var customTab: CustomTabActivityHelper
+  @Inject
+  internal lateinit var linkManager: LinkManager
+  @Inject
+  internal lateinit var syllabus: Syllabus
 
-  @BindView(R.id.controller_container) internal lateinit var container: ViewGroup
+  @BindView(R.id.controller_container)
+  internal lateinit var container: ViewGroup
 
   private lateinit var router: Router
 
@@ -92,19 +90,7 @@ class MainActivity : BaseActivity() {
     }
   }
 
-  @dagger.Module(
-      includes = [
-      HackerNewsModule::class,
-      RedditModule::class,
-      MediumModule::class,
-      ProductHuntModule::class,
-      SlashdotModule::class,
-      DesignerNewsModule::class,
-      DribbbleModule::class,
-      GitHubModule::class
-//      ImgurModule::class
-      ]
-  )
+  @dagger.Module(includes = [ResolvedCatchUpServiceRegistry::class])
   abstract class ServiceIntegrationModule {
     @dagger.Module
     companion object {
@@ -125,12 +111,16 @@ class MainActivity : BaseActivity() {
       @JvmStatic
       @FinalServices
       fun provideFinalServices(serviceDao: ServiceDao,
+          serviceMetas: Map<String, @JvmSuppressWildcards ServiceMeta>,
+          sharedPreferences: SharedPreferences,
           services: Map<String, @JvmSuppressWildcards Provider<Service>>): Map<String, Provider<Service>> {
-        return services.mapValues { (_, value) ->
-          Provider<Service> {
-            StorageBackedService(serviceDao, value.get())
-          }
-        }
+        return services
+            .filter { sharedPreferences.getBoolean(serviceMetas[it.key]!!.enabledKey, true) }
+            .mapValues { (_, value) ->
+              Provider<Service> {
+                StorageBackedService(serviceDao, value.get())
+              }
+            }
       }
     }
 

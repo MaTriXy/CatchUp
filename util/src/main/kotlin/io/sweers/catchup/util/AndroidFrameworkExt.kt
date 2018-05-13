@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2017 Zac Sweers
+ * Copyright (c) 2018 Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,13 +26,14 @@ import android.content.IntentFilter
 import android.content.res.Configuration
 import android.content.res.Resources
 import android.os.Build.VERSION_CODES
-import android.support.annotation.AttrRes
-import android.support.annotation.ColorInt
-import android.support.annotation.UiThread
-import android.support.v4.content.ContextCompat
 import android.util.TypedValue
 import android.widget.Toast
 import android.widget.Toast.LENGTH_LONG
+import androidx.annotation.AttrRes
+import androidx.annotation.ColorInt
+import androidx.annotation.UiThread
+import androidx.core.content.ContextCompat
+import androidx.core.content.systemService
 import io.reactivex.Observable
 import java.io.File
 import java.io.IOException
@@ -141,7 +142,7 @@ inline fun Resources.dp2px(dipValue: Float) =
 @TargetApi(VERSION_CODES.M)
 inline fun <reified T> Context.getSystemService(): T {
   if (isM()) {
-    return getSystemService(T::class.java)
+    return systemService<T>()
   } else {
     return when (T::class) {
       android.view.WindowManager::class -> Context.WINDOW_SERVICE

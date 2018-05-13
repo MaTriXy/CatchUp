@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2017 Zac Sweers
+ * Copyright (c) 2018 Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,19 +17,17 @@
 package io.sweers.catchup.ui.about
 
 import android.content.Context
-import android.support.design.widget.Snackbar
-import android.support.v7.widget.LinearLayoutManager
-import android.support.v7.widget.RecyclerView
-import android.support.v7.widget.RecyclerView.Adapter
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.animation.OvershootInterpolator
 import android.widget.ProgressBar
+import androidx.recyclerview.widget.RecyclerView.Adapter
 import butterknife.BindView
 import butterknife.ButterKnife
 import com.apollographql.apollo.ApolloClient
 import com.apollographql.apollo.rx2.Rx2Apollo
+import com.google.android.material.snackbar.Snackbar
 import com.uber.autodispose.kotlin.autoDisposable
 import dagger.Subcomponent
 import dagger.android.AndroidInjector
@@ -60,9 +58,9 @@ class ChangelogController : ButterKnifeController(), Scrollable {
   @Inject internal lateinit var linkManager: LinkManager
 
   @BindView(R.id.progress) lateinit var progressBar: ProgressBar
-  @BindView(R.id.list) lateinit var recyclerView: RecyclerView
+  @BindView(R.id.list) lateinit var recyclerView: androidx.recyclerview.widget.RecyclerView
 
-  private lateinit var layoutManager: LinearLayoutManager
+  private lateinit var layoutManager: androidx.recyclerview.widget.LinearLayoutManager
   private val adapter = ChangelogAdapter()
 
   override fun onContextAvailable(context: Context) {
@@ -78,7 +76,7 @@ class ChangelogController : ButterKnifeController(), Scrollable {
   override fun onViewBound(view: View) {
     super.onViewBound(view)
     recyclerView.adapter = adapter
-    layoutManager = LinearLayoutManager(view.context)
+    layoutManager = androidx.recyclerview.widget.LinearLayoutManager(view.context)
     recyclerView.layoutManager = layoutManager
     recyclerView.itemAnimator = FadeInUpAnimator(OvershootInterpolator(1f)).apply {
       addDuration = 300

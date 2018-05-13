@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2017 Zac Sweers
+ * Copyright (c) 2018 Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,22 +16,7 @@
 
 package io.sweers.catchup.service.medium.model
 
-import com.google.auto.value.AutoValue
-import com.squareup.moshi.JsonAdapter
-import com.squareup.moshi.Moshi
+import com.squareup.moshi.JsonClass
 
-@AutoValue
-internal abstract class Collection {
-
-  abstract fun domain(): String?
-
-  abstract fun id(): String
-
-  abstract fun name(): String
-
-  companion object {
-    @JvmStatic
-    fun jsonAdapter(moshi: Moshi): JsonAdapter<Collection> =
-        AutoValue_Collection.MoshiJsonAdapter(moshi)
-  }
-}
+@JsonClass(generateAdapter = true)
+internal data class Collection(val domain: String?, val id: String, val name: String)

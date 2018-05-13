@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2017 Zac Sweers
+ * Copyright (c) 2018 Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,7 +17,6 @@
 package io.sweers.catchup.ui.controllers
 
 import android.animation.Animator
-import android.animation.AnimatorListenerAdapter
 import android.animation.ArgbEvaluator
 import android.animation.ValueAnimator
 import android.content.Context
@@ -26,28 +25,30 @@ import android.content.SharedPreferences
 import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import android.os.Parcelable
-import android.support.annotation.ColorInt
-import android.support.annotation.ColorRes
-import android.support.annotation.DrawableRes
-import android.support.annotation.StringRes
-import android.support.design.widget.AppBarLayout
-import android.support.design.widget.CoordinatorLayout
-import android.support.design.widget.TabLayout
-import android.support.graphics.drawable.VectorDrawableCompat
-import android.support.v4.content.ContextCompat
-import android.support.v4.view.ViewPager
-import android.support.v4.view.animation.FastOutSlowInInterpolator
-import android.support.v4.view.animation.LinearOutSlowInInterpolator
-import android.support.v7.widget.Toolbar
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.animation.DecelerateInterpolator
+import androidx.annotation.ColorInt
+import androidx.annotation.ColorRes
+import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
+import androidx.appcompat.widget.Toolbar
+import androidx.coordinatorlayout.widget.CoordinatorLayout
+import androidx.core.animation.doOnEnd
+import androidx.core.animation.doOnStart
+import androidx.core.content.ContextCompat
+import androidx.interpolator.view.animation.FastOutSlowInInterpolator
+import androidx.interpolator.view.animation.LinearOutSlowInInterpolator
+import androidx.vectordrawable.graphics.drawable.VectorDrawableCompat
+import androidx.viewpager.widget.ViewPager
 import butterknife.BindView
 import com.bluelinelabs.conductor.Controller
 import com.bluelinelabs.conductor.Router
 import com.bluelinelabs.conductor.RouterTransaction
 import com.bluelinelabs.conductor.support.RouterPagerAdapter
+import com.google.android.material.appbar.AppBarLayout
+import com.google.android.material.tabs.TabLayout
 import com.jakewharton.rxbinding2.support.design.widget.RxAppBarLayout
 import com.uber.autodispose.kotlin.autoDisposable
 import dagger.Provides
@@ -58,7 +59,6 @@ import io.sweers.catchup.R
 import io.sweers.catchup.changes.ChangelogHelper
 import io.sweers.catchup.injection.ConductorInjection
 import io.sweers.catchup.injection.scopes.PerController
-import io.sweers.catchup.rx.PredicateConsumer
 import io.sweers.catchup.service.api.ServiceMeta
 import io.sweers.catchup.ui.Scrollable
 import io.sweers.catchup.ui.activity.SettingsActivity
@@ -67,6 +67,7 @@ import io.sweers.catchup.ui.controllers.service.ServiceController
 import io.sweers.catchup.util.clearLightStatusBar
 import io.sweers.catchup.util.isInNightMode
 import io.sweers.catchup.util.resolveAttributeColor
+import io.sweers.catchup.util.rx.PredicateConsumer
 import io.sweers.catchup.util.setLightStatusBar
 import io.sweers.catchup.util.updateNavBarColor
 import javax.inject.Inject
@@ -169,11 +170,6 @@ class PagerController : ButterKnifeController {
 
   override fun bind(view: View) = PagerController_ViewBinding(this, view)
 
-  override fun onAttach(view: View) {
-    ConductorInjection.inject(this)
-    super.onAttach(view)
-  }
-
   override fun onViewBound(view: View) {
     super.onViewBound(view)
 
@@ -262,10 +258,10 @@ class PagerController : ButterKnifeController {
     }
 
     // Set icons
-    for (i in serviceHandlers.indices) {
-      val service = serviceHandlers[i]
-      val d = VectorDrawableCompat.create(resources!!, service.icon, null)
-      tabLayout.getTabAt(i)!!.icon = d
+    serviceHandlers.forEachIndexed { index, serviceHandler ->
+      tabLayout.getTabAt(index)?.icon = VectorDrawableCompat.create(resources!!,
+          serviceHandler.icon,
+          null)
     }
 
     // Animate color changes
@@ -316,17 +312,13 @@ class PagerController : ButterKnifeController {
               .run {
                 interpolator = FastOutSlowInInterpolator()  // TODO Use singleton
                 duration = 400
-                addListener(object : AnimatorListenerAdapter() {
-                  override fun onAnimationStart(animator: Animator, isReverse: Boolean) {
-                    tabLayoutColorAnimator = animator
-                  }
-
-                  override fun onAnimationEnd(animator: Animator) {
-                    removeAllUpdateListeners()
-                    removeListener(this)
-                    tabLayoutColorAnimator = null
-                  }
-                })
+                doOnStart {
+                  tabLayoutColorAnimator = it
+                }
+                doOnEnd {
+                  removeAllUpdateListeners()
+                  tabLayoutColorAnimator = null
+                }
                 addUpdateListener { animator ->
                   @ColorInt val color = argbEvaluator.evaluate(animator.animatedValue as Float,
                       startColor,
@@ -347,21 +339,24 @@ class PagerController : ButterKnifeController {
       override fun onTabUnselected(tab: TabLayout.Tab) {}
 
       override fun onTabReselected(tab: TabLayout.Tab) {
-        pagerAdapter.getRouter(tab.position)?.getControllerWithTag(PAGE_TAG)?.let {
-              if (it is Scrollable) {
-                it.onRequestScrollToTop()
-                appBarLayout.setExpanded(true, true)
-              }
-            }
+        val controllerTag = "$PAGE_TAG.${serviceHandlers[tab.position].name}"
+        pagerAdapter.getRouter(tab.position)?.getControllerWithTag(controllerTag)?.let {
+          if (it is Scrollable) {
+            it.onRequestScrollToTop()
+            appBarLayout.setExpanded(true, true)
+          }
+        }
       }
     })
   }
 
   @ColorInt
   private fun getAndSaveColor(position: Int): Int {
-    if (resolvedColorCache[position] == R.color.no_color) {
-      resolvedColorCache[position] = ContextCompat.getColor(dayOnlyContext!!,
-          serviceHandlers[position].accent)
+    dayOnlyContext?.let {
+      if (resolvedColorCache[position] == R.color.no_color) {
+        resolvedColorCache[position] = ContextCompat.getColor(it,
+            serviceHandlers[position].accent)
+      }
     }
     return resolvedColorCache[position]
   }
@@ -404,6 +399,7 @@ class PagerController : ButterKnifeController {
         serviceMetas: Map<String, @JvmSuppressWildcards ServiceMeta>): Array<ServiceHandler> {
       val currentOrder = sharedPrefs.getString(P.ServicesOrder.KEY, null)?.split(",") ?: emptyList()
       return (serviceMetas.values
+          .filter { sharedPrefs.getBoolean(it.enabledKey, true) }
           .sortedBy { currentOrder.indexOf(it.id) }
           .map { it.toServiceHandler() })
           .toTypedArray()

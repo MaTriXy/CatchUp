@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2017 Zac Sweers
+ * Copyright (c) 2018 Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -36,6 +36,8 @@ import io.sweers.catchup.service.api.SummarizationInfo
 import io.sweers.catchup.service.api.TextService
 import io.sweers.catchup.service.reddit.model.RedditLink
 import io.sweers.catchup.service.reddit.model.RedditObjectFactory
+import io.sweers.catchup.serviceregistry.annotations.Meta
+import io.sweers.catchup.serviceregistry.annotations.ServiceModule
 import io.sweers.catchup.util.data.adapters.EpochInstantJsonAdapter
 import io.sweers.catchup.util.nullIfBlank
 import okhttp3.OkHttpClient
@@ -64,30 +66,31 @@ internal class RedditService @Inject constructor(
     return api.frontPage(25, request.pageId.nullIfBlank())
         .map { redditListingRedditResponse ->
           @Suppress("UNCHECKED_CAST")
-          val data = (redditListingRedditResponse.data()
-              .children() as List<RedditLink>)
+          val data = (redditListingRedditResponse.data.children as List<RedditLink>)
               .map {
                 CatchUpItem(
-                    id = it.id().hashCode().toLong(),
-                    title = it.title(),
-                    score = "+" to it.score(),
-                    timestamp = it.createdUtc(),
-                    author = "/u/" + it.author(),
-                    source = it.domain() ?: "self",
-                    commentCount = it.commentsCount(),
-                    tag = it.subreddit(),
-                    itemClickUrl = it.url(),
-                    itemCommentClickUrl = "https://reddit.com/comments/${it.id()}",
-                    summarizationInfo = SummarizationInfo.from(it.url(), it.selftext())
+                    id = it.id.hashCode().toLong(),
+                    title = it.title,
+                    score = "+" to it.score,
+                    timestamp = it.createdUtc,
+                    author = "/u/" + it.author,
+                    source = it.domain ?: "self",
+                    commentCount = it.commentsCount,
+                    tag = it.subreddit,
+                    itemClickUrl = it.url,
+                    itemCommentClickUrl = "https://reddit.com/comments/${it.id}",
+                    summarizationInfo = SummarizationInfo.from(it.url, it.selftext)
                 )
               }
-          DataResult(data, redditListingRedditResponse.data().after())
+          DataResult(data, redditListingRedditResponse.data.after)
         }
   }
 
   override fun linkHandler() = linkHandler
 }
 
+@Meta
+@ServiceModule
 @Module
 abstract class RedditMetaModule {
 
@@ -113,6 +116,7 @@ abstract class RedditMetaModule {
   }
 }
 
+@ServiceModule
 @Module(includes = [RedditMetaModule::class])
 abstract class RedditModule {
 
@@ -129,7 +133,6 @@ abstract class RedditModule {
     @JvmStatic
     internal fun provideMoshi(upstreamMoshi: Moshi): Moshi {
       return upstreamMoshi.newBuilder()
-          .add(RedditAdapterFactory.create())
           .add(RedditObjectFactory.INSTANCE)
           .add(Instant::class.java, EpochInstantJsonAdapter())
           .build()
