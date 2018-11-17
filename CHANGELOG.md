@@ -1,4 +1,12 @@
+* **New:** Integrate EmojiCompat for futureproofing emojis on all API versions
+* **New:** Build against Android P (SDK 28)
+* **New:** Use light nav bar in Marshmallow+
+* **New:** Splash screen on startup, for your viewing pleasure.
+* **New:** GitHub now scrapes the "trending" page rather than the "most popular repos created in the last week" logic from before. These might be reconciled in the future.
+* **New:** Shuffle button in service ordering.
+* **Fix:** Fix Medium API often (never?) returning collections information anymore
 * **Fix:** A bunch of miscellaneous rare crash cases
+* **Under the hood:** Building against AndroidX libraries
 
 ## 0.3.5 (2018-03-29)
 * **Fix:** Accidental proguard issue that would break HackerNews

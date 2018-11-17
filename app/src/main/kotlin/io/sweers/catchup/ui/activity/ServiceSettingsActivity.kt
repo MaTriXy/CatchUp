@@ -17,26 +17,22 @@
 package io.sweers.catchup.ui.activity
 
 import android.app.Activity
-import android.app.Fragment
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Bundle
-import android.preference.Preference
-import android.preference.PreferenceCategory
-import android.preference.PreferenceFragment
-import android.preference.SwitchPreference
 import androidx.appcompat.widget.Toolbar
 import androidx.core.content.ContextCompat
 import androidx.core.os.bundleOf
-import butterknife.BindView
+import androidx.fragment.app.transaction
+import androidx.preference.Preference
+import androidx.preference.PreferenceCategory
+import androidx.preference.PreferenceFragmentCompat
+import androidx.preference.SwitchPreference
 import dagger.Binds
 import dagger.Module
-import dagger.android.AndroidInjection
-import dagger.android.AndroidInjector
 import dagger.android.ContributesAndroidInjector
-import dagger.android.DispatchingAndroidInjector
-import dagger.android.HasFragmentInjector
+import dagger.android.support.AndroidSupportInjection
 import dagger.multibindings.Multibinds
 import io.sweers.catchup.P
 import io.sweers.catchup.R
@@ -46,26 +42,23 @@ import io.sweers.catchup.service.api.ServiceConfiguration.ActivityConfiguration
 import io.sweers.catchup.service.api.ServiceConfiguration.PreferencesConfiguration
 import io.sweers.catchup.service.api.ServiceMeta
 import io.sweers.catchup.serviceregistry.ResolvedCatchUpServiceMetaRegistry
-import io.sweers.catchup.ui.base.BaseActivity
+import io.sweers.catchup.ui.base.InjectingBaseActivity
 import io.sweers.catchup.util.asDayContext
 import io.sweers.catchup.util.isInNightMode
 import io.sweers.catchup.util.setLightStatusBar
+import kotterknife.bindView
 import javax.inject.Inject
 
 private const val TARGET_PREF_RESOURCE = "catchup.servicesettings.resource"
 
-class ServiceSettingsActivity : BaseActivity(), HasFragmentInjector {
+class ServiceSettingsActivity : InjectingBaseActivity() {
 
-  @Inject
-  internal lateinit var dispatchingFragmentInjector: DispatchingAndroidInjector<Fragment>
-  @BindView(R.id.toolbar)
-  internal lateinit var toolbar: Toolbar
+  private val toolbar by bindView<Toolbar>(R.id.toolbar)
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     val viewGroup = viewContainer.forActivity(this)
     layoutInflater.inflate(R.layout.activity_settings, viewGroup)
-    ServiceSettingsActivity_ViewBinding(this)
     setSupportActionBar(toolbar)
     supportActionBar?.setDisplayHomeAsUpEnabled(true)
 
@@ -74,18 +67,16 @@ class ServiceSettingsActivity : BaseActivity(), HasFragmentInjector {
     }
 
     if (savedInstanceState == null) {
-      fragmentManager.beginTransaction()
-          .add(R.id.container, ServiceSettingsFrag().apply {
-            if (intent.extras?.containsKey(TARGET_PREF_RESOURCE) == true) {
-              arguments = bundleOf(
-                  TARGET_PREF_RESOURCE to intent.extras.getInt(TARGET_PREF_RESOURCE))
-            }
-          })
-          .commit()
+      supportFragmentManager.transaction {
+        add(R.id.container, ServiceSettingsFrag().apply {
+          if (intent.extras?.containsKey(TARGET_PREF_RESOURCE) == true) {
+            arguments = bundleOf(
+                TARGET_PREF_RESOURCE to intent.extras!!.getInt(TARGET_PREF_RESOURCE))
+          }
+        })
+      }
     }
   }
-
-  override fun fragmentInjector(): AndroidInjector<Fragment> = dispatchingFragmentInjector
 
   @Module
   abstract class ServiceSettingsActivityModule {
@@ -94,7 +85,7 @@ class ServiceSettingsActivity : BaseActivity(), HasFragmentInjector {
     abstract fun provideActivity(activity: ServiceSettingsActivity): Activity
   }
 
-  class ServiceSettingsFrag : PreferenceFragment() {
+  class ServiceSettingsFrag : PreferenceFragmentCompat() {
 
     @Inject
     lateinit var serviceMetas: Map<String, @JvmSuppressWildcards ServiceMeta>
@@ -102,17 +93,17 @@ class ServiceSettingsActivity : BaseActivity(), HasFragmentInjector {
     @Inject
     lateinit var sharedPrefs: SharedPreferences
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-      AndroidInjection.inject(this)
-      super.onCreate(savedInstanceState)
+    override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
+      AndroidSupportInjection.inject(this)
       // Replace backing sharedPreferences with ours
       preferenceManager.apply {
         sharedPreferencesName = "catchup"
         sharedPreferencesMode = Context.MODE_PRIVATE
       }
 
-      if (arguments?.containsKey(TARGET_PREF_RESOURCE) == true) {
-        addPreferencesFromResource(arguments.getInt(TARGET_PREF_RESOURCE))
+      val args = arguments
+      if (args?.containsKey(TARGET_PREF_RESOURCE) == true) {
+        addPreferencesFromResource(args.getInt(TARGET_PREF_RESOURCE))
       } else {
         setUpGeneralSettings()
       }
@@ -130,7 +121,7 @@ class ServiceSettingsActivity : BaseActivity(), HasFragmentInjector {
           .forEach { meta ->
             meta.run {
               // Create a category
-              val metaColor = ContextCompat.getColor(activity.asDayContext(), meta.themeColor)
+              val metaColor = ContextCompat.getColor(activity!!.asDayContext(), meta.themeColor)
               val category = PreferenceCategory(activity).apply {
                 title = resources.getString(meta.name)
 //                titleColor = metaColor
@@ -140,7 +131,7 @@ class ServiceSettingsActivity : BaseActivity(), HasFragmentInjector {
               // Create an "enabled" pref
               val enabledPref = SwitchPreference(activity).apply {
                 title = resources.getString(R.string.enabled)
-                key = meta.enabledKey
+                key = meta.enabledPreferenceKey
 //                themeColor = metaColor
                 setDefaultValue(true)
               }
@@ -151,7 +142,7 @@ class ServiceSettingsActivity : BaseActivity(), HasFragmentInjector {
                 when (config) {
                   is ActivityConfiguration -> {
                     category.addPreference(Preference(activity).apply {
-                      dependency = meta.enabledKey
+                      dependency = meta.enabledPreferenceKey
                       setOnPreferenceClickListener {
                         startActivity(Intent(activity, config.activity))
                         true
@@ -160,7 +151,7 @@ class ServiceSettingsActivity : BaseActivity(), HasFragmentInjector {
                   }
                   is PreferencesConfiguration -> {
                     category.addPreference(Preference(activity).apply {
-                      dependency = meta.enabledKey
+                      dependency = meta.enabledPreferenceKey
                       setOnPreferenceClickListener {
                         startActivity(Intent(activity, ServiceSettingsActivity::class.java).apply {
                           putExtra(TARGET_PREF_RESOURCE, config.preferenceResource)

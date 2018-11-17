@@ -1,5 +1,5 @@
 <p>
-  <img src="https://github.com/hzsweers/CatchUp/blob/master/app/src/main/play/en-US/listing/featureGraphic/feature.png?raw=true"/>
+  <img src="https://github.com/hzsweers/CatchUp/blob/master/app/src/main/play/listings/en-US/feature-graphic/feature.png?raw=true"/>
 </p>
 
 CatchUp
@@ -46,7 +46,7 @@ libraries, patterns, API quirks, and more. It's been a very fun project to spike
 - RxJava 2/AutoDispose
 - Debugging tooling as a first class citizen in the debug build
   - Leak Canary, Chuck, Scalpel, debug drawer, Stetho, bug reporting, the works
-- Conductor
+- AndroidX/Jetpack
 - Dagger 2
   - One of the more interesting parts of CatchUp is that its service architecture is a Dagger-powered plugin system
 - Room (Arch components)
@@ -75,13 +75,37 @@ work of others. Particularly:
 
 ## Download
 
-CatchUp is in open alpha.
+CatchUp is in open alpha, but master tends to be rather far ahead of what's on the Play Store.
 
 <a href='https://play.google.com/store/apps/details?id=io.sweers.catchup'>
     <img alt='Get it on Google Play' 
          src='https://play.google.com/intl/en_us/badges/images/generic/en_badge_web_generic.png'
          height="116" width="300"/>
 </a>
+
+## Development
+
+If you'd like to build CatchUp locally, you _should_ be able to just clone and build with no issues.
+
+CatchUp tends to keep up with Android Studio canaries, so you may have to use a canary version. 
+Check the Android Gradle Plugin `deps.android.gradlePlugin` dependency in `gradle/dependencies.kt`.
+
+If you want to build with working services, some require API keys. See the 
+[wiki](https://github.com/hzsweers/CatchUp/wiki/Authentication-information) for more details on 
+which services require keys.
+
+Bug fixes are always welcome. Tests are too if you're into that kinda thing, but I'm not actively
+trying to make this project a shining icon of TDD. For new features or otherwise significant work, 
+please discuss in an issue first.
+
+Note that by default, I have a Timber tree that crashes the app in the event of an error in debug
+(fix me now!). This may be problematic if you don't have services authenticated (especially Firebase
+and its ever shifting requirements), so you can disable this behavior via setting the `catchup.crashOnTimberError`
+property in the root `gradle.properties` file to `false`.
+
+For apollo-android's code generation: if you want to use a local installation of the `apollo-codegen`
+node module you'll need to make sure `0.19.` is installed and linked (`npm install -g apollo-codegen@0.19.1`). Otherwise,
+the gradle plugin should gracefully fallback to downloading it on demand.
 
 License
 -------

@@ -23,12 +23,13 @@ import dagger.Module
 import dagger.Provides
 import dagger.Reusable
 import dagger.multibindings.IntoMap
-import io.reactivex.Maybe
 import io.reactivex.Observable
+import io.reactivex.Single
 import io.sweers.catchup.service.api.CatchUpItem
 import io.sweers.catchup.service.api.DataRequest
 import io.sweers.catchup.service.api.DataResult
 import io.sweers.catchup.service.api.LinkHandler
+import io.sweers.catchup.service.api.Mark.Companion.createCommentMark
 import io.sweers.catchup.service.api.Service
 import io.sweers.catchup.service.api.ServiceKey
 import io.sweers.catchup.service.api.ServiceMeta
@@ -36,7 +37,6 @@ import io.sweers.catchup.service.api.ServiceMetaKey
 import io.sweers.catchup.service.api.SummarizationInfo
 import io.sweers.catchup.service.api.TextService
 import io.sweers.catchup.service.medium.model.MediumPost
-import io.sweers.catchup.service.medium.model.Post
 import io.sweers.catchup.serviceregistry.annotations.Meta
 import io.sweers.catchup.serviceregistry.annotations.ServiceModule
 import io.sweers.catchup.util.data.adapters.EpochInstantJsonAdapter
@@ -63,16 +63,16 @@ internal class MediumService @Inject constructor(
 
   override fun meta() = serviceMeta
 
-  override fun fetchPage(request: DataRequest): Maybe<DataResult> {
+  override fun fetchPage(request: DataRequest): Single<DataResult> {
     return api.top()
         .concatMapEager { references ->
-          Observable.fromIterable<Post>(references.post.values)
+          Observable.fromIterable(references.post.values)
               .map { post ->
                 MediumPost(
                     post = post,
                     user = references.user[post.creatorId]
                         ?: throw IllegalStateException("Missing user on post!"),
-                    collection = references.collection[post.homeCollectionId])
+                    collection = references.collection?.get(post.homeCollectionId))
               }
         }
         .map {
@@ -86,17 +86,18 @@ internal class MediumService @Inject constructor(
                     to post.virtuals.recommends,
                 timestamp = post.createdAt,
                 author = user.name,
-                commentCount = post.virtuals.responsesCreatedCount,
                 tag = collection?.name,
                 itemClickUrl = url,
-                itemCommentClickUrl = constructCommentsUrl(),
-                summarizationInfo = SummarizationInfo.from(url)
+                summarizationInfo = SummarizationInfo.from(url),
+                mark = createCommentMark(
+                    count = post.virtuals.responsesCreatedCount,
+                    clickUrl = constructCommentsUrl()
+                )
             )
           }
         }
         .toList()
         .map { DataResult(it, null) }
-        .toMaybe()
   }
 
   override fun linkHandler() = linkHandler

@@ -16,11 +16,10 @@
 
 package io.sweers.catchup.service.api
 
-// Gross vars/constructors because of https://issuetracker.google.com/issues/67181813
-class ImageInfo(
-    var url: String,
-    var animatable: Boolean,
-    var bestSize: Pair<Int, Int>?
-) {
-  constructor(): this("", false, null)
-}
+data class ImageInfo(
+    val url: String,
+    val animatable: Boolean,
+    val sourceUrl: String,
+    val bestSize: Pair<Int, Int>?,
+    val imageId: String? = null
+)

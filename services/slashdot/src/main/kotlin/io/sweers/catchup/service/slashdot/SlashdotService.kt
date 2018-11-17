@@ -24,11 +24,12 @@ import dagger.Module
 import dagger.Provides
 import dagger.Reusable
 import dagger.multibindings.IntoMap
-import io.reactivex.Maybe
+import io.reactivex.Single
 import io.sweers.catchup.service.api.CatchUpItem
 import io.sweers.catchup.service.api.DataRequest
 import io.sweers.catchup.service.api.DataResult
 import io.sweers.catchup.service.api.LinkHandler
+import io.sweers.catchup.service.api.Mark.Companion.createCommentMark
 import io.sweers.catchup.service.api.Service
 import io.sweers.catchup.service.api.ServiceKey
 import io.sweers.catchup.service.api.ServiceMeta
@@ -58,9 +59,9 @@ internal class SlashdotService @Inject constructor(
 
   override fun meta() = serviceMeta
 
-  override fun fetchPage(request: DataRequest): Maybe<DataResult> {
+  override fun fetchPage(request: DataRequest): Single<DataResult> {
     return service.main()
-        .map { it.itemList }
+        .map(Feed::itemList)
         .flattenAsObservable { it }
         .map { (title, id, _, summary, updated, section, comments, author, department) ->
           CatchUpItem(
@@ -70,15 +71,16 @@ internal class SlashdotService @Inject constructor(
               timestamp = updated,
               author = author.name,
               source = department,
-              commentCount = comments,
               tag = section,
               itemClickUrl = id,
-              itemCommentClickUrl = "$id#comments",
-              summarizationInfo = SummarizationInfo(summary.substringBefore("<p>"), NONE)
+              summarizationInfo = SummarizationInfo(summary.substringBefore("<p>"), NONE),
+              mark = createCommentMark(
+                  count = comments,
+                  clickUrl = "$id#comments"
+              )
           )
         }
         .toList()
-        .toMaybe()
         .map { DataResult(it, null) }
   }
 
@@ -141,7 +143,7 @@ abstract class SlashdotModule {
             // read from cache for 30 minutes, per slashdot's preferred limit
             val maxAge = 60 * 30
             originalResponse.newBuilder()
-                .header("Cache-Control", "public, max-age=" + maxAge)
+                .header("Cache-Control", "public, max-age=$maxAge")
                 .build()
           }
           .build()

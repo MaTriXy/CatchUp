@@ -22,14 +22,11 @@ import androidx.annotation.CallSuper
 import androidx.annotation.CheckResult
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.NavUtils
-import com.bluelinelabs.conductor.Controller
 import com.jakewharton.rxrelay2.BehaviorRelay
-import com.uber.autodispose.LifecycleScopeProvider
+import com.uber.autodispose.lifecycle.CorrespondingEventsFunction
+import com.uber.autodispose.lifecycle.KotlinLifecycleScopeProvider
 import dagger.android.AndroidInjection
-import dagger.android.DispatchingAndroidInjector
 import io.reactivex.Observable
-import io.reactivex.functions.Function
-import io.sweers.catchup.injection.HasControllerInjector
 import io.sweers.catchup.ui.ViewContainer
 import io.sweers.catchup.ui.base.ActivityEvent.CREATE
 import io.sweers.catchup.ui.base.ActivityEvent.DESTROY
@@ -41,7 +38,7 @@ import io.sweers.catchup.util.updateNavBarColor
 import javax.inject.Inject
 
 abstract class BaseActivity : AppCompatActivity(),
-    LifecycleScopeProvider<ActivityEvent>, HasControllerInjector {
+    KotlinLifecycleScopeProvider<ActivityEvent> {
 
   private val lifecycleRelay = BehaviorRelay.create<ActivityEvent>()
 
@@ -103,34 +100,37 @@ abstract class BaseActivity : AppCompatActivity(),
     lifecycle().doOnDestroy(this) { action() }.subscribe()
   }
 
-  @Inject protected lateinit var viewContainer: ViewContainer
-  @Inject lateinit var controllerInjector: DispatchingAndroidInjector<Controller>
+  @Inject
+  protected lateinit var viewContainer: ViewContainer
 
   @CheckResult
   override fun lifecycle(): Observable<ActivityEvent> {
     return lifecycleRelay
   }
 
-  final override fun correspondingEvents(): Function<ActivityEvent, ActivityEvent> {
+  final override fun correspondingEvents(): CorrespondingEventsFunction<ActivityEvent> {
     return ActivityEvent.LIFECYCLE
   }
 
-  final override fun peekLifecycle(): ActivityEvent {
+  final override fun peekLifecycle(): ActivityEvent? {
     return lifecycleRelay.value
   }
 
-  @CallSuper override fun onCreate(savedInstanceState: Bundle?) {
+  @CallSuper
+  override fun onCreate(savedInstanceState: Bundle?) {
     AndroidInjection.inject(this)
     super.onCreate(savedInstanceState)
     lifecycleRelay.accept(ActivityEvent.CREATE)
   }
 
-  @CallSuper override fun onStart() {
+  @CallSuper
+  override fun onStart() {
     super.onStart()
     lifecycleRelay.accept(ActivityEvent.START)
   }
 
-  @CallSuper override fun onResume() {
+  @CallSuper
+  override fun onResume() {
     super.onResume()
     lifecycleRelay.accept(ActivityEvent.RESUME)
   }
@@ -147,22 +147,30 @@ abstract class BaseActivity : AppCompatActivity(),
     updateNavBarColor()
   }
 
-  @CallSuper override fun onPause() {
+  @CallSuper
+  override fun onPause() {
     lifecycleRelay.accept(ActivityEvent.PAUSE)
     super.onPause()
   }
 
-  @CallSuper override fun onStop() {
+  @CallSuper
+  override fun onStop() {
     lifecycleRelay.accept(ActivityEvent.STOP)
     super.onStop()
   }
 
-  @CallSuper override fun onDestroy() {
+  @CallSuper
+  override fun onDestroy() {
     lifecycleRelay.accept(ActivityEvent.DESTROY)
     super.onDestroy()
   }
 
-  override fun controllerInjector(): DispatchingAndroidInjector<Controller> {
-    return controllerInjector
+  override fun onBackPressed() {
+    supportFragmentManager.fragments.filterIsInstance<BackpressHandler>().forEach {
+      if (it.onBackPressed()) {
+        return
+      }
+    }
+    super.onBackPressed()
   }
 }

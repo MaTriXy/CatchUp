@@ -17,14 +17,20 @@
 package io.sweers.catchup.analytics
 
 import com.google.firebase.perf.FirebasePerformance
+import com.google.firebase.perf.metrics.Trace
 import io.reactivex.Completable
 import io.reactivex.Maybe
+import io.reactivex.Single
 import io.sweers.catchup.util.d
 import java.util.concurrent.atomic.AtomicLong
 
 /*
  * Utilities for tracing.
  */
+
+private inline fun Trace.incrementMetric(name: String) {
+  incrementMetric(name, 1L)
+}
 
 fun <T> Maybe<T>.trace(tag: String): Maybe<T> {
   val trace = FirebasePerformance.getInstance().newTrace(tag)
@@ -35,13 +41,13 @@ fun <T> Maybe<T>.trace(tag: String): Maybe<T> {
         timer.set(System.currentTimeMillis())
       }
       .doOnSuccess {
-        trace.incrementCounter("Success")
+        trace.incrementMetric("Success")
       }
       .doOnComplete {
-        trace.incrementCounter("Empty")
+        trace.incrementMetric("Empty")
       }
       .doOnError {
-        trace.incrementCounter("Error")
+        trace.incrementMetric("Error")
       }
       .doFinally {
         trace.stop()
@@ -58,10 +64,29 @@ fun Completable.trace(tag: String): Completable {
         timer.set(System.currentTimeMillis())
       }
       .doOnComplete {
-        trace.incrementCounter("Success")
+        trace.incrementMetric("Success")
       }
       .doOnError {
-        trace.incrementCounter("Error")
+        trace.incrementMetric("Error")
+      }
+      .doFinally {
+        trace.stop()
+        d { "Stopped trace. $tag - took: ${System.currentTimeMillis() - timer.get()}ms" }
+      }
+}
+
+fun <T> Single<T>.trace(tag: String): Single<T> {
+  val trace = FirebasePerformance.getInstance().newTrace(tag)
+  val timer = AtomicLong()
+  return doOnSubscribe {
+        trace.start()
+        timer.set(System.currentTimeMillis())
+      }
+      .doOnSuccess {
+        trace.incrementMetric("Success")
+      }
+      .doOnError {
+        trace.incrementMetric("Error")
       }
       .doFinally {
         trace.stop()

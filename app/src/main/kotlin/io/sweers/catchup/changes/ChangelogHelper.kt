@@ -21,6 +21,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.SharedPreferences
 import android.content.res.ColorStateList
+import android.graphics.Color
 import android.graphics.Typeface
 import android.text.style.StyleSpan
 import android.widget.TextView
@@ -28,12 +29,14 @@ import androidx.annotation.ColorInt
 import androidx.appcompat.widget.Toolbar
 import androidx.core.view.ViewCompat
 import androidx.core.view.doOnLayout
+import com.getkeepsafe.taptargetview.TapTarget
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import dagger.Lazy
 import io.sweers.catchup.BuildConfig
 import io.sweers.catchup.R
 import io.sweers.catchup.data.LinkManager
 import io.sweers.catchup.edu.Syllabus
+import io.sweers.catchup.edu.id
 import io.sweers.catchup.service.api.UrlMeta
 import io.sweers.catchup.ui.FontHelper
 import io.sweers.catchup.util.ColorUtils
@@ -75,19 +78,18 @@ class ChangelogHelper @Inject constructor(
             }
           }
         }
-        // TODO Jetifier bug
-//        syllabus.showIfNeverSeen("changelog_seen") {
-//          TapTarget.forToolbarMenuItem(toolbar, R.id.changes, "Changes",
-//              "Click here for new changes")
-//              .outerCircleColorInt(hintColor)
-//              .outerCircleAlpha(0.96f)
-//              .targetCircleColor(R.color.colorPrimary)
-//              .titleTextColorInt(Color.WHITE)
-//              .descriptionTextColorInt(Color.parseColor("#33FFFFFF"))
-//              .drawShadow(true)
-//              .id("changelog")
-//              .apply { fontHelper.getFont()?.let(::textTypeface) }
-//        }
+        syllabus.showIfNeverSeen("changelog_seen") {
+          TapTarget.forToolbarMenuItem(toolbar, R.id.changes, "Changes",
+              "Click here for new changes")
+              .outerCircleColorInt(hintColor)
+              .outerCircleAlpha(0.96f)
+              .targetCircleColor(R.color.colorPrimary)
+              .titleTextColorInt(Color.WHITE)
+              .descriptionTextColorInt(Color.parseColor("#33FFFFFF"))
+              .drawShadow(true)
+              .id("changelog")
+              .apply { fontHelper.getFont()?.let(::textTypeface) }
+        }
       }
     }
   }
@@ -96,11 +98,11 @@ class ChangelogHelper @Inject constructor(
   private fun showChangelog(changelog: String,
       context: Context,
       @ColorInt highlightColor: Int): Boolean {
-    // TODO Make this a custom controller instead, which should make the animation less jarring
+    // TODO Make this a custom fragment instead, which should make the animation less jarring
     BottomSheetDialog(context)
         .apply {
           val contentView = layoutInflater
-              .inflate(R.layout.controller_whatsnew, null, false)
+              .inflate(R.layout.fragment_whatsnew, null, false)
           setContentView(contentView)
           val title = contentView.findViewById<TextView>(R.id.build_name)!!.apply {
             typeface = fontHelper.getFont()
@@ -124,7 +126,6 @@ class ChangelogHelper @Inject constructor(
                             override fun onClick(url: String) {
                               linkManager.openUrl(
                                   UrlMeta(url, highlightColor, context.resolveActivity()))
-                                  .subscribe()
                             }
                           },
                           StyleSpan(Typeface.BOLD)

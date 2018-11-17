@@ -22,12 +22,14 @@ import dagger.Module
 import dagger.Provides
 import dagger.Reusable
 import dagger.multibindings.IntoMap
-import io.reactivex.Maybe
+import io.reactivex.Single
+import io.sweers.catchup.libraries.retrofitconverters.DecodingConverter
 import io.sweers.catchup.service.api.CatchUpItem
 import io.sweers.catchup.service.api.DataRequest
 import io.sweers.catchup.service.api.DataResult
 import io.sweers.catchup.service.api.ImageInfo
 import io.sweers.catchup.service.api.LinkHandler
+import io.sweers.catchup.service.api.Mark.Companion.createCommentMark
 import io.sweers.catchup.service.api.Service
 import io.sweers.catchup.service.api.ServiceKey
 import io.sweers.catchup.service.api.ServiceMeta
@@ -54,7 +56,7 @@ internal class DribbbleService @Inject constructor(
 
   override fun meta() = serviceMeta
 
-  override fun fetchPage(request: DataRequest): Maybe<DataResult> {
+  override fun fetchPage(request: DataRequest): Single<DataResult> {
     val page = request.pageId.toInt()
     return api.getPopular(page, 50)
         .flattenAsObservable { it }
@@ -66,19 +68,20 @@ internal class DribbbleService @Inject constructor(
               timestamp = it.createdAt,
               author = "/u/" + it.user.name,
               source = null,
-              commentCount = it.commentsCount.toInt(),
               tag = null,
-              itemClickUrl = it.htmlUrl,
+              itemClickUrl = it.images.best(),
               imageInfo = ImageInfo(
                   it.images.best(),
                   it.animated,
-                  it.images.bestSize()
-              )
+                  it.htmlUrl,
+                  it.images.bestSize(),
+                  it.id.toString()
+              ),
+              mark = createCommentMark(count = it.commentsCount.toInt())
           )
         }
         .toList()
         .map { DataResult(it, (page + 1).toString()) }
-        .toMaybe()
   }
 
   override fun linkHandler() = linkHandler
@@ -132,7 +135,7 @@ abstract class DribbbleModule {
       return Retrofit.Builder().baseUrl(DribbbleApi.ENDPOINT)
           .callFactory { client.get().newCall(it) }
           .addCallAdapterFactory(rxJavaCallAdapterFactory)
-          .addConverterFactory(DribbbleJsoupConverter.Factory())
+          .addConverterFactory(DecodingConverter.newFactory(DribbbleParser::parse))
           .validateEagerly(BuildConfig.DEBUG)
           .build()
           .create(DribbbleApi::class.java)

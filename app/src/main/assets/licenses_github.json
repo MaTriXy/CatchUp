@@ -5,7 +5,7 @@
   },
   {
     "owner": "jakewharton",
-    "name": "butterknife"
+    "name": "kotterknife"
   },
   {
     "owner": "jakewharton",
@@ -110,10 +110,6 @@
   {
     "owner": "google",
     "name": "auto"
-  },
-  {
-    "owner": "bluelinelabs",
-    "name": "Conductor"
   },
   {
     "owner": "unbescape",

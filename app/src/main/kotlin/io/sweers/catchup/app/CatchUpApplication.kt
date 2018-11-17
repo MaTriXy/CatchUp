@@ -20,6 +20,7 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.Application
 import android.content.SharedPreferences
+import android.os.Looper
 import androidx.appcompat.app.AppCompatDelegate
 import com.f2prateek.rx.preferences2.RxSharedPreferences
 import com.gabrielittner.threetenbp.LazyThreeTen
@@ -28,25 +29,47 @@ import com.squareup.leakcanary.LeakCanary
 import com.squareup.leakcanary.RefWatcher
 import dagger.android.DispatchingAndroidInjector
 import dagger.android.HasActivityInjector
+import io.reactivex.android.plugins.RxAndroidPlugins
+import io.reactivex.android.schedulers.AndroidSchedulers
 import io.sweers.catchup.P
 import io.sweers.catchup.data.LumberYard
 import io.sweers.catchup.util.d
 import javax.inject.Inject
 
 @SuppressLint("Registered")
-open class CatchUpApplication : Application(), HasActivityInjector {
+abstract class CatchUpApplication : Application(), HasActivityInjector {
 
   companion object {
 
-    @JvmStatic lateinit var refWatcher: RefWatcher
+    init {
+      RxAndroidPlugins.setInitMainThreadSchedulerHandler {
+        AndroidSchedulers.from(Looper.getMainLooper(), true)
+      }
+    }
+
+    @JvmStatic
+    lateinit var refWatcher: RefWatcher
 
     fun refWatcher() = refWatcher
   }
 
-  @Inject internal lateinit var dispatchingActivityInjector: DispatchingAndroidInjector<Activity>
-  @Inject internal lateinit var sharedPreferences: SharedPreferences
-  @Inject internal lateinit var lumberYard: LumberYard
-  @Inject internal lateinit var rxPreferences: RxSharedPreferences
+  @Inject
+  internal lateinit var dispatchingActivityInjector: DispatchingAndroidInjector<Activity>
+  @Inject
+  internal lateinit var sharedPreferences: SharedPreferences
+  @Inject
+  internal lateinit var lumberYard: LumberYard
+  @Inject
+  internal lateinit var rxPreferences: RxSharedPreferences
+
+  open fun onPreInject() {
+
+  }
+
+  abstract fun inject()
+
+  // Override this in variants
+  protected open fun initVariant() = Unit
 
   override fun onCreate() {
     super.onCreate()
@@ -55,10 +78,8 @@ open class CatchUpApplication : Application(), HasActivityInjector {
       return
     }
     LazyThreeTen.init(this)
-    DaggerApplicationComponent.builder()
-        .application(this)
-        .build()
-        .inject(this)
+    onPreInject()
+    inject()
     P.init(this, false)
     P.setSharedPreferences(sharedPreferences, rxPreferences)
     initVariant()
@@ -87,9 +108,6 @@ open class CatchUpApplication : Application(), HasActivityInjector {
     FirebasePerformance.getInstance().isPerformanceCollectionEnabled =
         sharedPreferences.getBoolean(P.Reports.KEY, false)
   }
-
-  // Override this in variants
-  protected open fun initVariant() = Unit
 
   override fun activityInjector(): DispatchingAndroidInjector<Activity> =
       dispatchingActivityInjector

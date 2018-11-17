@@ -23,12 +23,13 @@ import dagger.Module
 import dagger.Provides
 import dagger.Reusable
 import dagger.multibindings.IntoMap
-import io.reactivex.Maybe
 import io.reactivex.Observable
+import io.reactivex.Single
 import io.sweers.catchup.service.api.CatchUpItem
 import io.sweers.catchup.service.api.DataRequest
 import io.sweers.catchup.service.api.DataResult
 import io.sweers.catchup.service.api.LinkHandler
+import io.sweers.catchup.service.api.Mark.Companion.createCommentMark
 import io.sweers.catchup.service.api.Service
 import io.sweers.catchup.service.api.ServiceKey
 import io.sweers.catchup.service.api.ServiceMeta
@@ -58,7 +59,7 @@ internal class DesignerNewsService @Inject constructor(
 
   override fun meta() = serviceMeta
 
-  override fun fetchPage(request: DataRequest): Maybe<DataResult> {
+  override fun fetchPage(request: DataRequest): Single<DataResult> {
     val page = request.pageId.toInt()
     return api.getTopStories(page)
         .flatMapObservable { stories ->
@@ -72,18 +73,18 @@ internal class DesignerNewsService @Inject constructor(
                 score = "▲" to voteCount,
                 timestamp = createdAt,
                 source = hostname,
-                commentCount = commentCount,
                 tag = badge,
                 itemClickUrl = url,
-                itemCommentClickUrl = href
-                    .replace("api.", "www.")
-                    .replace("api/v2/", "")
+                mark = createCommentMark(
+                    count = commentCount,
+                    clickUrl = href.replace("api.", "www.")
+                        .replace("api/v2/", "")
+                )
             )
           }
         }
         .toList()
         .map { DataResult(it, (page + 1).toString()) }
-        .toMaybe()
   }
 
   override fun linkHandler() = linkHandler
@@ -112,7 +113,7 @@ abstract class DesignerNewsMetaModule {
         R.color.dnAccent,
         R.drawable.logo_dn,
         pagesAreNumeric = true,
-        firstPageKey = "0"
+        firstPageKey = "1"
     )
   }
 }

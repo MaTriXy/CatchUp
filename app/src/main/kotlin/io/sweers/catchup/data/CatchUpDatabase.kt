@@ -24,17 +24,17 @@ import androidx.room.TypeConverter
 import androidx.room.TypeConverters
 import io.sweers.catchup.service.api.CatchUpItem
 import io.sweers.catchup.service.api.SummarizationType
-import io.sweers.catchup.ui.controllers.SmmryDao
-import io.sweers.catchup.ui.controllers.SmmryStorageEntry
+import io.sweers.catchup.ui.fragments.SmmryDao
+import io.sweers.catchup.ui.fragments.SmmryStorageEntry
 import org.threeten.bp.Instant
 
 @Database(
     entities = [
-    ServicePage::class,
-    CatchUpItem::class,
-    SmmryStorageEntry::class
+      ServicePage::class,
+      CatchUpItem::class,
+      SmmryStorageEntry::class
     ],
-    version = 1)
+    version = 2)
 @TypeConverters(CatchUpConverters::class)
 abstract class CatchUpDatabase : RoomDatabase() {
 
@@ -50,6 +50,7 @@ abstract class CatchUpDatabase : RoomDatabase() {
           CatchUpDatabase::class.java,
           "catchup.db")
           .fallbackToDestructiveMigration()
+          .fallbackToDestructiveMigrationOnDowngrade()
           .build()
           .also { INSTANCE = it }
     }
@@ -78,7 +79,7 @@ internal class CatchUpConverters {
     return if (listString.isNullOrBlank()) {
       emptyList()
     } else {
-      listString?.let { it.split(",").asSequence().toList().map { it.toLong() } }
+      listString.split(",").asSequence().toList().map { it.toLong() }
     }
   }
 

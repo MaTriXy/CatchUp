@@ -19,7 +19,6 @@ package io.sweers.catchup.ui.about
 import `in`.uncod.android.bypass.Bypass
 import android.annotation.SuppressLint
 import android.app.Activity
-import android.content.Context
 import android.graphics.Typeface
 import android.os.Bundle
 import android.os.Parcelable
@@ -34,36 +33,28 @@ import androidx.annotation.Px
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.coordinatorlayout.widget.CoordinatorLayout
-import androidx.core.util.layoutDirection
+import androidx.core.text.layoutDirection
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentStatePagerAdapter
+import androidx.fragment.app.transaction
 import androidx.viewpager.widget.ViewPager
-import butterknife.BindView
-import butterknife.ButterKnife
-import com.bluelinelabs.conductor.Conductor
-import com.bluelinelabs.conductor.Controller
-import com.bluelinelabs.conductor.Router
-import com.bluelinelabs.conductor.RouterTransaction
-import com.bluelinelabs.conductor.support.RouterPagerAdapter
 import com.google.android.material.appbar.AppBarLayout
 import com.google.android.material.appbar.CollapsingToolbarLayout
 import com.google.android.material.tabs.TabLayout
 import com.jakewharton.rxbinding2.support.design.widget.RxAppBarLayout
-import com.uber.autodispose.kotlin.autoDisposable
+import com.uber.autodispose.autoDisposable
 import dagger.Binds
 import dagger.Module
-import dagger.Subcomponent
-import dagger.android.AndroidInjector
-import dagger.multibindings.IntoMap
+import dagger.android.ContributesAndroidInjector
 import io.sweers.catchup.BuildConfig
 import io.sweers.catchup.R
 import io.sweers.catchup.data.LinkManager
-import io.sweers.catchup.injection.ConductorInjection
-import io.sweers.catchup.injection.ControllerKey
 import io.sweers.catchup.injection.scopes.PerActivity
-import io.sweers.catchup.injection.scopes.PerController
+import io.sweers.catchup.injection.scopes.PerFragment
 import io.sweers.catchup.service.api.UrlMeta
 import io.sweers.catchup.ui.Scrollable
-import io.sweers.catchup.ui.base.BaseActivity
-import io.sweers.catchup.ui.base.ButterKnifeController
+import io.sweers.catchup.ui.base.InjectingBaseActivity
+import io.sweers.catchup.ui.base.InjectingBaseFragment
 import io.sweers.catchup.util.LinkTouchMovementMethod
 import io.sweers.catchup.util.TouchableUrlSpan
 import io.sweers.catchup.util.UiUtil
@@ -72,23 +63,36 @@ import io.sweers.catchup.util.customtabs.CustomTabActivityHelper
 import io.sweers.catchup.util.isInNightMode
 import io.sweers.catchup.util.parseMarkdownAndPlainLinks
 import io.sweers.catchup.util.setLightStatusBar
+import kotterknife.bindView
 import java.util.Locale
 import javax.inject.Inject
 
-class AboutActivity : BaseActivity() {
+class AboutActivity : InjectingBaseActivity() {
 
   @Inject
   internal lateinit var customTab: CustomTabActivityHelper
   @Inject
   internal lateinit var linkManager: LinkManager
-  @BindView(R.id.controller_container)
-  internal lateinit var container: ViewGroup
-
-  private lateinit var router: Router
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
 
+//    lifecycle.addObserver(object : LifecycleObserver {
+//      @OnLifecycleEvent(Lifecycle.Event.ON_START)
+//      fun start() {
+//        customTab.bindCustomTabsService(this@AboutActivity)
+//      }
+//
+//      @OnLifecycleEvent(Lifecycle.Event.ON_STOP)
+//      fun stop() {
+//        customTab.unbindCustomTabsService(this@AboutActivity)
+//      }
+//
+//      @OnLifecycleEvent(Lifecycle.Event.ON_DESTROY)
+//      fun destroy() {
+//        customTab.connectionCallback = null
+//      }
+//    })
     lifecycle()
         .doOnStart(customTab) { bindCustomTabsService(this@AboutActivity) }
         .doOnStop(customTab) { unbindCustomTabsService(this@AboutActivity) }
@@ -99,16 +103,10 @@ class AboutActivity : BaseActivity() {
     val viewGroup = viewContainer.forActivity(this)
     layoutInflater.inflate(R.layout.activity_generic_container, viewGroup)
 
-    ButterKnife.bind(this).doOnDestroy { unbind() }
-    router = Conductor.attachRouter(this, container, savedInstanceState)
-    if (!router.hasRootController()) {
-      router.setRoot(RouterTransaction.with(AboutController()))
-    }
-  }
-
-  override fun onBackPressed() {
-    if (!router.handleBack()) {
-      super.onBackPressed()
+    if (savedInstanceState == null) {
+      supportFragmentManager.transaction {
+        add(R.id.fragment_container, AboutFragment())
+      }
     }
   }
 
@@ -122,113 +120,96 @@ class AboutActivity : BaseActivity() {
   }
 }
 
-class AboutController : ButterKnifeController() {
+class AboutFragment : InjectingBaseFragment() {
 
   companion object {
-    private const val PAGE_TAG = "AboutController.pageTag"
     private const val FADE_PERCENT = 0.75F
     private const val TITLE_TRANSLATION_PERCENT = 0.50F
   }
 
   @Inject
-  internal lateinit var customTab: CustomTabActivityHelper
-  @Inject
   internal lateinit var linkManager: LinkManager
   @Inject
   internal lateinit var bypass: Bypass
 
-  @BindView(R.id.about_controller_root)
-  lateinit var rootLayout: CoordinatorLayout
-  @BindView(R.id.appbarlayout)
-  lateinit var appBarLayout: AppBarLayout
-  @BindView(R.id.banner_container)
-  lateinit var bannerContainer: View
-  @BindView(R.id.banner_icon)
-  lateinit var bannerIcon: ImageView
-  @BindView(R.id.banner_text)
-  lateinit var aboutText: TextView
-  @BindView(R.id.banner_title)
-  lateinit var title: TextView
-  @BindView(R.id.tab_layout)
-  lateinit var tabLayout: TabLayout
-  @BindView(R.id.toolbar)
-  lateinit var toolbar: Toolbar
-  @BindView(R.id.view_pager)
-  lateinit var viewPager: ViewPager
+  private val rootLayout by bindView<CoordinatorLayout>(R.id.about_fragment_root)
+  private val appBarLayout by bindView<AppBarLayout>(R.id.appbarlayout)
+  private val bannerContainer by bindView<View>(R.id.banner_container)
+  private val bannerIcon by bindView<ImageView>(R.id.banner_icon)
+  private val aboutText by bindView<TextView>(R.id.banner_text)
+  private val title by bindView<TextView>(R.id.banner_title)
+  private val tabLayout by bindView<TabLayout>(R.id.tab_layout)
+  private val toolbar by bindView<Toolbar>(R.id.toolbar)
+  private val viewPager by bindView<ViewPager>(R.id.view_pager)
 
-  private var pagerAdapter: RouterPagerAdapter
-  private val compositeClickSpan = { url: String ->
-    setOf(
-        object : TouchableUrlSpan(url, aboutText.linkTextColors, 0) {
-          override fun onClick(url: String) {
-            linkManager.openUrl(
-                UrlMeta(url, aboutText.highlightColor,
-                    activity!!))
-                .subscribe()
-          }
-        },
-        StyleSpan(Typeface.BOLD)
-    )
+  private lateinit var compositeClickSpan: (String) -> Set<Any>
+  private lateinit var pagerAdapter: FragmentStatePagerAdapter
+
+  override fun inflateView(inflater: LayoutInflater,
+      container: ViewGroup?,
+      savedInstanceState: Bundle?): View =
+      inflater.inflate(R.layout.fragment_about, container, false)
+
+  override fun onSaveInstanceState(outState: Bundle) {
+    (appBarLayout.layoutParams as CoordinatorLayout.LayoutParams).behavior?.let { behavior ->
+      outState.putParcelable("collapsingToolbarState",
+          behavior.onSaveInstanceState(rootLayout, appBarLayout))
+    }
+    outState.putParcelable("aboutPager", viewPager.onSaveInstanceState())
+    outState.putParcelable("aboutAdapter", pagerAdapter.saveState())
+    super.onSaveInstanceState(outState)
   }
 
-  init {
-    pagerAdapter = object : RouterPagerAdapter(this) {
-      override fun configureRouter(router: Router, position: Int) {
-        if (!router.hasRootController()) {
-          val controller: Controller = when (position) {
-            0 -> LicensesController()
-            1 -> ChangelogController()
+  @SuppressLint("SetTextI18n")
+  override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+    super.onViewCreated(view, savedInstanceState)
+    pagerAdapter = object : FragmentStatePagerAdapter(childFragmentManager) {
+      private val screens = mutableMapOf<Int, Fragment>()
+
+      override fun getItem(position: Int): Fragment {
+        return screens.getOrPut(position) {
+          when (position) {
+            0 -> LicensesFragment()
+            1 -> ChangelogFragment()
             else -> TODO("Not implemented")
           }
-          router.setRoot(RouterTransaction.with(controller)
-              .tag(PAGE_TAG))
         }
       }
 
       override fun getCount() = 2
 
-      override fun getPageTitle(position: Int) = when (position) {
-        0 -> resources!!.getString(R.string.licenses)
-        else -> resources!!.getString(R.string.changelog)
+      override fun getPageTitle(position: Int): String = when (position) {
+        0 -> resources.getString(R.string.licenses)
+        else -> resources.getString(R.string.changelog)
       }
     }
-  }
 
-  override fun onContextAvailable(context: Context) {
-    ConductorInjection.inject(this)
-    super.onContextAvailable(context)
-  }
-
-  override fun inflateView(inflater: LayoutInflater, container: ViewGroup): View =
-      inflater.inflate(R.layout.controller_about, container, false)
-
-  override fun bind(view: View) = ButterKnife.bind(this, view)
-
-  override fun onSaveViewState(view: View, outState: Bundle) {
-    // Save the appbarlayout state to restore it on the other side
-    (appBarLayout.layoutParams as CoordinatorLayout.LayoutParams).behavior?.let { behavior ->
-      outState.run {
-        putParcelable("collapsingToolbarState",
-            behavior.onSaveInstanceState(rootLayout, appBarLayout))
-      }
+    compositeClickSpan = { url: String ->
+      setOf(
+          object : TouchableUrlSpan(url, aboutText.linkTextColors, 0) {
+            override fun onClick(url: String) {
+              linkManager.openUrl(
+                  UrlMeta(url, aboutText.highlightColor,
+                      activity!!))
+            }
+          },
+          StyleSpan(Typeface.BOLD)
+      )
     }
-    super.onSaveViewState(view, outState)
-  }
 
-  override fun onRestoreViewState(view: View, savedViewState: Bundle) {
-    super.onRestoreViewState(view, savedViewState)
-    with(savedViewState) {
-      getParcelable<Parcelable>("collapsingToolbarState")?.let {
+    savedInstanceState?.let { state ->
+      state.getParcelable<Parcelable>("collapsingToolbarState")?.let {
         (appBarLayout.layoutParams as CoordinatorLayout.LayoutParams).behavior
             ?.onRestoreInstanceState(rootLayout, appBarLayout, it)
       }
+      state.getParcelable<Parcelable>("aboutPager")?.let(viewPager::onRestoreInstanceState)
+      state.getParcelable<Parcelable>("aboutAdapter")?.let {
+        pagerAdapter.restoreState(it, state.classLoader)
+      }
     }
-  }
 
-  @SuppressLint("SetTextI18n")
-  override fun onViewBound(view: View) {
-    super.onViewBound(view)
-    with(activity as AppCompatActivity) {
+    with(activity as AppCompatActivity)
+    {
       if (!isInNightMode()) {
         toolbar.setLightStatusBar()
       }
@@ -246,7 +227,6 @@ class AboutController : ButterKnifeController() {
       Toast.makeText(activity, R.string.icon_attribution, Toast.LENGTH_SHORT).show()
       linkManager.openUrl(
           UrlMeta("https://cookicons.co", aboutText.highlightColor, activity!!))
-          .subscribe()
       true
     }
 
@@ -288,7 +268,7 @@ class AboutController : ButterKnifeController() {
       override fun onTabUnselected(tab: TabLayout.Tab) {}
 
       override fun onTabReselected(tab: TabLayout.Tab) {
-        pagerAdapter.getRouter(tab.position)?.getControllerWithTag(PAGE_TAG)?.let {
+        pagerAdapter.getItem(tab.position).let {
           if (it is Scrollable) {
             it.onRequestScrollToTop()
           }
@@ -297,6 +277,7 @@ class AboutController : ButterKnifeController() {
     })
   }
 
+  @SuppressLint("CheckResult")
   private fun setUpHeader() {
     // TODO would be good if we could be smarter about scroll distance and tweak the offset
     // thresholds to dynamically adjust. Case and point - don't want tablayout below to cover the
@@ -384,38 +365,20 @@ class AboutController : ButterKnifeController() {
   }
 }
 
-@PerController
-@Subcomponent
-interface AboutComponent : AndroidInjector<AboutController> {
+@Module
+abstract class AboutFragmentBindingModule {
 
-  @Subcomponent.Builder
-  abstract class Builder : AndroidInjector.Builder<AboutController>()
-}
+  @PerFragment
+  @ContributesAndroidInjector
+  internal abstract fun aboutFragment(): AboutFragment
 
-@Module(subcomponents = arrayOf(
-    AboutComponent::class,
-    LicensesComponent::class,
-    ChangelogComponent::class
-))
-abstract class AboutControllerBindingModule {
+  @PerFragment
+  @ContributesAndroidInjector(modules = [LicensesModule::class])
+  internal abstract fun licensesFragment(): LicensesFragment
 
-  @Binds
-  @IntoMap
-  @ControllerKey(AboutController::class)
-  internal abstract fun bindAboutControllerInjectorFactory(
-      builder: AboutComponent.Builder): AndroidInjector.Factory<out Controller>
-
-  @Binds
-  @IntoMap
-  @ControllerKey(LicensesController::class)
-  internal abstract fun bindLicensesControllerInjectorFactory(
-      builder: LicensesComponent.Builder): AndroidInjector.Factory<out Controller>
-
-  @Binds
-  @IntoMap
-  @ControllerKey(ChangelogController::class)
-  internal abstract fun bindChangelogControllerInjectorFactory(
-      builder: ChangelogComponent.Builder): AndroidInjector.Factory<out Controller>
+  @PerFragment
+  @ContributesAndroidInjector
+  internal abstract fun changelogFragment(): ChangelogFragment
 }
 
 private enum class ScrollDirection {

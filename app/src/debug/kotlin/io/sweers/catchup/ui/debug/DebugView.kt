@@ -32,15 +32,13 @@ import android.widget.Spinner
 import android.widget.SpinnerAdapter
 import android.widget.Switch
 import android.widget.TextView
-import butterknife.BindView
-import butterknife.OnClick
 import com.jakewharton.processphoenix.ProcessPhoenix
 import com.jakewharton.rxbinding2.view.RxView
 import com.jakewharton.rxbinding2.widget.RxAdapterView
 import com.readystatesoftware.chuck.internal.ui.MainActivity
 import com.squareup.leakcanary.internal.DisplayLeakActivity
 import dagger.Lazy
-import io.reactivex.Observable
+import io.reactivex.Maybe
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.schedulers.Schedulers
 import io.sweers.catchup.BuildConfig
@@ -48,10 +46,13 @@ import io.sweers.catchup.P
 import io.sweers.catchup.R
 import io.sweers.catchup.data.LumberYard
 import io.sweers.catchup.ui.logs.LogsDialog
-import io.sweers.catchup.util.applyOn
 import io.sweers.catchup.util.d
 import io.sweers.catchup.util.isN
+import io.sweers.catchup.util.kotlin.applyOn
 import io.sweers.catchup.util.truncateAt
+import kotterknife.bindView
+import kotterknife.onSubviewClick
+import okhttp3.Cache
 import okhttp3.OkHttpClient
 import org.threeten.bp.Instant
 import org.threeten.bp.ZoneId
@@ -63,35 +64,35 @@ import java.util.concurrent.TimeUnit.MILLISECONDS
 @SuppressLint("SetTextI18n")
 class DebugView @JvmOverloads constructor(context: Context,
     attrs: AttributeSet? = null) : FrameLayout(context, attrs) {
-  @BindView(R.id.debug_icon) lateinit var icon: View
-  @BindView(R.id.debug_contextual_title) lateinit var contextualTitleView: View
-  @BindView(R.id.debug_contextual_list) lateinit var contextualListView: LinearLayout
-  @BindView(R.id.debug_network_delay) lateinit var networkDelayView: Spinner
-  @BindView(R.id.debug_network_variance) lateinit var networkVarianceView: Spinner
-  @BindView(R.id.debug_network_error) lateinit var networkErrorView: Spinner
-  @BindView(R.id.debug_enable_mock_mode) lateinit var enableMockModeView: Switch
-  @BindView(R.id.debug_ui_animation_speed) lateinit var uiAnimationSpeedView: Spinner
-  @BindView(R.id.debug_ui_pixel_grid) lateinit var uiPixelGridView: Switch
-  @BindView(R.id.debug_ui_pixel_ratio) lateinit var uiPixelRatioView: Switch
-  @BindView(R.id.debug_ui_scalpel) lateinit var uiScalpelView: Switch
-  @BindView(R.id.debug_ui_scalpel_wireframe) lateinit var uiScalpelWireframeView: Switch
-  @BindView(R.id.debug_build_name) lateinit var buildNameView: TextView
-  @BindView(R.id.debug_build_code) lateinit var buildCodeView: TextView
-  @BindView(R.id.debug_build_sha) lateinit var buildShaView: TextView
-  @BindView(R.id.debug_build_date) lateinit var buildDateView: TextView
-  @BindView(R.id.debug_device_make) lateinit var deviceMakeView: TextView
-  @BindView(R.id.debug_device_model) lateinit var deviceModelView: TextView
-  @BindView(R.id.debug_device_resolution) lateinit var deviceResolutionView: TextView
-  @BindView(R.id.debug_device_density) lateinit var deviceDensityView: TextView
-  @BindView(R.id.debug_device_release) lateinit var deviceReleaseView: TextView
-  @BindView(R.id.debug_device_api) lateinit var deviceApiView: TextView
-  @BindView(R.id.debug_okhttp_cache_max_size) lateinit var okHttpCacheMaxSizeView: TextView
-  @BindView(R.id.debug_okhttp_cache_write_error) lateinit var okHttpCacheWriteErrorView: TextView
-  @BindView(R.id.debug_okhttp_cache_request_count)
-  lateinit var okHttpCacheRequestCountView: TextView
-  @BindView(R.id.debug_okhttp_cache_network_count)
-  lateinit var okHttpCacheNetworkCountView: TextView
-  @BindView(R.id.debug_okhttp_cache_hit_count) lateinit var okHttpCacheHitCountView: TextView
+  internal val icon by bindView<View>(R.id.debug_icon)
+  private val contextualTitleView by bindView<View>(R.id.debug_contextual_title)
+  private val contextualListView by bindView<LinearLayout>(R.id.debug_contextual_list)
+  private val networkDelayView by bindView<Spinner>(R.id.debug_network_delay)
+  private val networkVarianceView by bindView<Spinner>(R.id.debug_network_variance)
+  private val networkErrorView by bindView<Spinner>(R.id.debug_network_error)
+  private val enableMockModeView by bindView<Switch>(R.id.debug_enable_mock_mode)
+  private val uiAnimationSpeedView by bindView<Spinner>(R.id.debug_ui_animation_speed)
+  private val uiPixelGridView by bindView<Switch>(R.id.debug_ui_pixel_grid)
+  private val uiPixelRatioView by bindView<Switch>(R.id.debug_ui_pixel_ratio)
+  private val uiScalpelView by bindView<Switch>(R.id.debug_ui_scalpel)
+  private val uiScalpelWireframeView by bindView<Switch>(R.id.debug_ui_scalpel_wireframe)
+  private val buildNameView by bindView<TextView>(R.id.debug_build_name)
+  private val buildCodeView by bindView<TextView>(R.id.debug_build_code)
+  private val buildShaView by bindView<TextView>(R.id.debug_build_sha)
+  private val buildDateView by bindView<TextView>(R.id.debug_build_date)
+  private val deviceMakeView by bindView<TextView>(R.id.debug_device_make)
+  private val deviceModelView by bindView<TextView>(R.id.debug_device_model)
+  private val deviceResolutionView by bindView<TextView>(R.id.debug_device_resolution)
+  private val deviceDensityView by bindView<TextView>(R.id.debug_device_density)
+  private val deviceReleaseView by bindView<TextView>(R.id.debug_device_release)
+  private val deviceApiView by bindView<TextView>(R.id.debug_device_api)
+  private val okHttpCacheMaxSizeView by bindView<TextView>(R.id.debug_okhttp_cache_max_size)
+  private val okHttpCacheWriteErrorView by bindView<TextView>(R.id.debug_okhttp_cache_write_error)
+  private val okHttpCacheRequestCountView by bindView<TextView>(
+      R.id.debug_okhttp_cache_request_count)
+  private val okHttpCacheNetworkCountView by bindView<TextView>(
+      R.id.debug_okhttp_cache_network_count)
+  private val okHttpCacheHitCountView by bindView<TextView>(R.id.debug_okhttp_cache_hit_count)
   private lateinit var client: Lazy<OkHttpClient>
   private lateinit var lumberYard: LumberYard
   private var isMockMode = P.DebugMockModeEnabled.get()
@@ -126,18 +127,27 @@ class DebugView @JvmOverloads constructor(context: Context,
     // Inflate all of the controls and inject them.
     LayoutInflater.from(context)
         .inflate(R.layout.debug_view_content, this)
-    DebugView_ViewBinding(this)
+
+    onSubviewClick<View>(R.id.debug_logs_show) {
+      LogsDialog(ContextThemeWrapper(context, R.style.CatchUp), lumberYard).show()
+    }
+    onSubviewClick<View>(R.id.debug_leaks_show) {
+      startDebugActivity(Intent(context, DisplayLeakActivity::class.java))
+    }
+    onSubviewClick<View>(R.id.debug_network_logs) {
+      startDebugActivity(Intent(context, MainActivity::class.java))
+    }
 
     setupNetworkSection()
     setupMockBehaviorSection()
     setupUserInterfaceSection()
     setupBuildSection()
     setupDeviceSection()
-    setupOkHttpCacheSection()
+    refreshOkHttpCacheStats(setup = true)
   }
 
   fun onDrawerOpened() {
-    refreshOkHttpCacheStats()
+    refreshOkHttpCacheStats(false)
   }
 
   private fun setupNetworkSection() {
@@ -249,18 +259,6 @@ class DebugView @JvmOverloads constructor(context: Context,
     }
   }
 
-  @OnClick(R.id.debug_logs_show) internal fun showLogs() {
-    LogsDialog(ContextThemeWrapper(context, R.style.CatchUp), lumberYard).show()
-  }
-
-  @OnClick(R.id.debug_leaks_show) internal fun showLeaks() {
-    startDebugActivity(Intent(context, DisplayLeakActivity::class.java))
-  }
-
-  @OnClick(R.id.debug_network_logs) internal fun showNetworkLogs() {
-    startDebugActivity(Intent(context, MainActivity::class.java))
-  }
-
   private fun startDebugActivity(intent: Intent) {
     if (isN()) {
       // In case they're for some reason already in multiwindow
@@ -273,9 +271,10 @@ class DebugView @JvmOverloads constructor(context: Context,
   private fun setupBuildSection() {
     buildNameView.text = BuildConfig.VERSION_NAME
     buildCodeView.text = BuildConfig.VERSION_CODE.toString()
-    buildShaView.text = BuildConfig.GIT_SHA
+    buildShaView.text = buildNameView.resources.getString(R.string.git_sha)
 
-    val buildTime = Instant.ofEpochSecond(BuildConfig.GIT_TIMESTAMP)
+    val buildTime = Instant.ofEpochSecond(
+        buildNameView.resources.getInteger(R.integer.git_timestamp).toLong())
     buildDateView.text = DATE_DISPLAY_FORMAT.format(buildTime)
   }
 
@@ -291,26 +290,27 @@ class DebugView @JvmOverloads constructor(context: Context,
     deviceApiView.text = Build.VERSION.SDK_INT.toString()
   }
 
-  private fun setupOkHttpCacheSection() {
-    Observable
-        .fromCallable { client.get().cache() }
+  private fun refreshOkHttpCacheStats(setup: Boolean = false) {
+    Maybe
+        .create<Cache> { e ->
+          // Shares the cache with apiClient, so no need to check both.
+          client.get().cache()?.let {
+            e.onSuccess(it)
+          } ?: e.onComplete()
+        }
         .subscribeOn(Schedulers.io())
         .observeOn(AndroidSchedulers.mainThread())
         .subscribe { cache ->
-          okHttpCacheMaxSizeView.text = getSizeString(cache.maxSize())
-          refreshOkHttpCacheStats()
+          if (setup) {
+            okHttpCacheMaxSizeView.text = getSizeString(cache.maxSize())
+          }
+          val writeTotal = cache.writeSuccessCount() + cache.writeAbortCount()
+          val percentage = (1f * cache.writeAbortCount() / writeTotal * 100).toInt()
+          okHttpCacheWriteErrorView.text = "${cache.writeAbortCount()} / $writeTotal ($percentage%)"
+          okHttpCacheRequestCountView.text = cache.requestCount().toString()
+          okHttpCacheNetworkCountView.text = cache.networkCount().toString()
+          okHttpCacheHitCountView.text = cache.hitCount().toString()
         }
-  }
-
-  private fun refreshOkHttpCacheStats() {
-    val cache = client.get()
-        .cache() // Shares the cache with apiClient, so no need to check both.
-    val writeTotal = cache.writeSuccessCount() + cache.writeAbortCount()
-    val percentage = (1f * cache.writeAbortCount() / writeTotal * 100).toInt()
-    okHttpCacheWriteErrorView.text = "${cache.writeAbortCount()} / $writeTotal ($percentage%)"
-    okHttpCacheRequestCountView.text = cache.requestCount().toString()
-    okHttpCacheNetworkCountView.text = cache.networkCount().toString()
-    okHttpCacheHitCountView.text = cache.hitCount().toString()
   }
 
   private fun applyAnimationSpeed(multiplier: Int) {
@@ -328,7 +328,7 @@ class DebugView @JvmOverloads constructor(context: Context,
         .withZone(ZoneId.systemDefault())
 
     private fun getDensityString(displayMetrics: DisplayMetrics): String {
-      return when (displayMetrics.densityDpi) {
+      return when (val dpi = displayMetrics.densityDpi) {
         DisplayMetrics.DENSITY_LOW -> "ldpi"
         DisplayMetrics.DENSITY_MEDIUM -> "mdpi"
         DisplayMetrics.DENSITY_HIGH -> "hdpi"
@@ -336,7 +336,7 @@ class DebugView @JvmOverloads constructor(context: Context,
         DisplayMetrics.DENSITY_XXHIGH -> "xxhdpi"
         DisplayMetrics.DENSITY_XXXHIGH -> "xxxhdpi"
         DisplayMetrics.DENSITY_TV -> "tvdpi"
-        else -> displayMetrics.densityDpi.toString()
+        else -> dpi.toString()
       }
     }
 

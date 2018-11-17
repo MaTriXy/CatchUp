@@ -13,24 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-/*
- * Copyright (c) 2017 Zac Sweers
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-import de.triplet.gradle.play.PlayAccountConfig
-import org.gradle.api.internal.plugins.DefaultConvention
+import org.jetbrains.kotlin.gradle.dsl.Coroutines
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import java.io.ByteArrayOutputStream
 import java.text.SimpleDateFormat
@@ -42,8 +25,7 @@ plugins {
   kotlin("android")
   kotlin("kapt")
   id("com.apollographql.android")
-  id("net.ltgt.errorprone")
-  id("com.bugsnag.android.gradle")
+//  id("com.bugsnag.android.gradle")
   id("com.github.triplet.play")
 }
 
@@ -54,6 +36,9 @@ apply {
   }
 }
 
+// TODO Can stop doing this when BuildConfig becomes a class rather than a java file
+val isRelease = gradle.startParameter.taskNames.any { it.endsWith("Release") }
+
 android {
   compileSdkVersion(deps.android.build.compileSdkVersion)
   buildToolsVersion(deps.android.build.buildToolsVersion)
@@ -62,15 +47,15 @@ android {
     applicationId = "io.sweers.catchup"
     minSdkVersion(deps.android.build.minSdkVersion)
     targetSdkVersion(deps.android.build.targetSdkVersion)
-    versionCode = deps.build.gitCommitCount(project)
+    versionCode = deps.build.gitCommitCount(project, isRelease)
     versionName = deps.build.gitTag(project)
     multiDexEnabled = false
 
     the<BasePluginConvention>().archivesBaseName = "catchup"
     vectorDrawables.useSupportLibrary = true
 
-    buildConfigField("String", "GIT_SHA", "\"${deps.build.gitSha(project)}\"")
-    buildConfigField("long", "GIT_TIMESTAMP", deps.build.gitTimestamp(project).toString())
+    resValue("string", "git_sha", "\"${deps.build.gitSha(project)}\"")
+    resValue("integer", "git_timestamp", "${deps.build.gitTimestamp(project)}")
     buildConfigField("String", "GITHUB_DEVELOPER_TOKEN",
         "\"${properties["catchup_github_developer_token"]}\"")
     buildConfigField("String", "SMMRY_API_KEY",
@@ -78,8 +63,8 @@ android {
     resValue("string", "changelog_text", "\"${getChangelog()}\"")
   }
   compileOptions {
-    setSourceCompatibility(JavaVersion.VERSION_1_8)
-    setTargetCompatibility(JavaVersion.VERSION_1_8)
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
   }
   signingConfigs {
     create("release") {
@@ -91,12 +76,25 @@ android {
     }
   }
   packagingOptions {
-    exclude("META-INF/LICENSE")
-    exclude("META-INF/NOTICE")
+    exclude("**/*.dot")
+    exclude("**/*.kotlin_metadata")
+    exclude("**/*.properties")
+    exclude("*.properties")
+    exclude("kotlin/**")
     exclude("LICENSE.txt")
-    exclude("META-INF/rxjava.properties")
-    exclude("META-INF/NOTICE.txt")
+    exclude("LICENSE_OFL")
+    exclude("LICENSE_UNICODE")
+    exclude("META-INF/*.kotlin_module")
+    exclude("META-INF/*.version")
+    exclude("META-INF/androidx.*")
+    exclude("META-INF/CHANGES")
+    exclude("META-INF/com.uber.crumb/**")
+    exclude("META-INF/LICENSE")
     exclude("META-INF/LICENSE.txt")
+    exclude("META-INF/NOTICE")
+    exclude("META-INF/NOTICE.txt")
+    exclude("META-INF/README.md")
+    exclude("META-INF/rxjava.properties")
     exclude("META-INF/services/javax.annotation.processing.Processor")
   }
   buildTypes {
@@ -106,15 +104,19 @@ android {
       ext["enableBugsnag"] = false
       buildConfigField("String", "IMGUR_CLIENT_ACCESS_TOKEN",
           "\"${project.properties["catchup_imgur_access_token"].toString()}\"")
+      buildConfigField("boolean", "CRASH_ON_TIMBER_ERROR",
+          project.properties["catchup.crashOnTimberError"].toString())
     }
     getByName("release") {
       buildConfigField("String", "BUGSNAG_KEY",
           "\"${properties["catchup_bugsnag_key"].toString()}\"")
-      signingConfig = signingConfigs.getByName("release")
+      signingConfig = signingConfigs.getByName(if ("useDebugSigning" in properties) "debug" else "release")
       postprocessing.apply {
         proguardFiles("proguard-rules.pro")
         isOptimizeCode = true
         isObfuscate = true
+        isRemoveUnusedCode = true
+        isRemoveUnusedResources = true
       }
     }
   }
@@ -138,19 +140,19 @@ android {
   }
   // Should be fixed now, disable if need be
   // https://github.com/bugsnag/bugsnag-android-gradle-plugin/issues/59
-//  splits {
-//    density {
-//      isEnable = true
-//      reset()
-//      include("mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi")
-//    }
-//    abi {
-//      isEnable = true
-//      reset()
-//      include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
-//      isUniversalApk = true
-//    }
-//  }
+  splits {
+    density {
+      isEnable = true
+      reset()
+      include("mdpi", "hdpi", "xhdpi", "xxhdpi", "xxxhdpi")
+    }
+    abi {
+      isEnable = true
+      reset()
+      include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+      isUniversalApk = true
+    }
+  }
   afterEvaluate {
     val firebaseVariants = setOf("release", "debug")
     applicationVariants.forEach { variant ->
@@ -187,21 +189,21 @@ kapt {
   arguments {
     arg("room.schemaLocation", "$projectDir/schemas")
     arg("moshi.generated", "javax.annotation.Generated")
+    arg("dagger.formatGeneratedSource", "disabled")
   }
 }
 
 play {
-  setTrack("alpha")
-  uploadImages = true
+  track = "alpha"
   serviceAccountEmail = properties["catchup_play_publisher_account"].toString()
-  pk12File = rootProject.file("signing/play-account.p12")
+  serviceAccountCredentials = rootProject.file("signing/play-account.p12")
 }
 
-bugsnag {
-  apiKey = properties["catchup_bugsnag_key"].toString()
-  autoProguardConfig = false
-  ndk = true
-}
+//bugsnag {
+//  apiKey = properties["catchup_bugsnag_key"].toString()
+//  autoProguardConfig = false
+//  ndk = true
+//}
 
 psync {
   includesPattern = "**/xml/prefs_*.xml"
@@ -221,29 +223,45 @@ apollo {
   customTypeMapping["URI"] = "okhttp3.HttpUrl"
 }
 
-tasks.withType<JavaCompile> {
-  options.compilerArgs = listOf("-Xep:MissingOverride:OFF")
-}
-
 tasks.withType<KotlinCompile> {
   kotlinOptions {
-    freeCompilerArgs = listOf("-Xjsr305=strict")
+    freeCompilerArgs = build.standardFreeKotlinCompilerArgs
+  }
+}
+
+kotlin {
+  experimental {
+    coroutines = Coroutines.ENABLE
   }
 }
 
 open class CutChangelogTask : DefaultTask() {
 
-  @Input
+  @get:Input
   lateinit var versionName: String
 
   @TaskAction
   fun run() {
     val changelog = project.rootProject.file("CHANGELOG.md")
 
-    val whatsNewPath = "${project.projectDir}/src/main/play/en-US/whatsnew"
-    val newChangelog = getChangelog(changelog, "")
-    if (newChangelog.length > 500) {
-      throw IllegalStateException("Changelog length exceeds 500ch max. Is ${newChangelog.length}")
+    val whatsNewPath = "${project.projectDir}/src/main/play/release-notes/en-US/default.txt"
+    val newChangelog = getChangelog(changelog, "").let {
+      if (it.length > 500) {
+        logger.log(LogLevel.WARN,
+            "Changelog length (${it.length}) exceeds 500 char max. Truncating...")
+        val warning = "\n(Truncated due to store restrictions. Full changelog in app!)"
+        val warningLength = warning.length
+        val remainingAmount = 500 - warningLength
+        val builder = StringBuilder()
+        for (line in it.lineSequence()) {
+          if (builder.length + line.length + 1 < remainingAmount) {
+            builder.appendln(line)
+          } else {
+            break
+          }
+        }
+        builder.append(warning).toString()
+      } else it
     }
     if (!newChangelog.isEmpty()) {
       project.file(whatsNewPath).writer().use {
@@ -279,12 +297,10 @@ open class CutChangelogTask : DefaultTask() {
   }
 }
 
-tasks {
-  "cutChangelog"(CutChangelogTask::class) {
-    versionName = deps.build.gitTag(project)
-    group = "build"
-    description = "Cuts the current changelog version and updates the play store changelog file"
-  }
+tasks.register("cutChangelog", CutChangelogTask::class.java) {
+  versionName = deps.build.gitTag(project)
+  group = "build"
+  description = "Cuts the current changelog version and updates the play store changelog file"
 }
 
 fun getChangelog(): String {
@@ -319,7 +335,10 @@ fun getChangelog(): String {
 }
 
 open class UpdateVersion : DefaultTask() {
-  @Input
+
+  @set:Option(option = "updateType",
+      description = "Configures the version update type. Can be (major|minor|patch).")
+  @get:Input
   lateinit var type: String
 
   @TaskAction
@@ -331,20 +350,20 @@ open class UpdateVersion : DefaultTask() {
     }
     var (major, minor, patch) = latestTag.split(".").map(String::toInt)
     when (type) {
-      "M" -> {
+      "major" -> {
         major++
         minor = 0
         patch = 0
       }
-      "m" -> {
+      "minor" -> {
         minor++
         patch = 0
       }
-      "p" -> {
+      "patch" -> {
         patch++
       }
       else -> {
-        throw IllegalArgumentException("Unrecognized version type \"$type\"")
+        throw IllegalArgumentException("Unrecognized updateType \"$type\"")
       }
     }
     val latestVersionString = "$major.$minor.$patch"
@@ -366,48 +385,54 @@ open class UpdateVersion : DefaultTask() {
   }
 }
 
-tasks {
-  "updateVersion"(UpdateVersion::class) {
-    type = properties["version"].toString()
-    group = "build"
-    description = "Updates the current version. Supports CLI property flag -Pversion={type} where type is (Mmp)"
-  }
+tasks.create("updateVersion", UpdateVersion::class.java) {
+  group = "build"
+  description = "Updates the current version. Supports CLI option --updateType={type} where type is (major|minor|patch)"
 }
 
 dependencies {
-  kapt(project(":tooling:spi-visualizer"))
-  compileOnly(project(":tooling:spi-visualizer"))
+  kapt(project(":libraries:tooling:spi-visualizer"))
+  compileOnly(project(":libraries:tooling:spi-visualizer"))
 
-  implementation(project(":third_party:bypass"))
+  implementation(project(":libraries:third_party:bypass"))
   implementation(project(":service-api"))
   implementation(project(":service-registry:service-registry"))
-  implementation(project(":gemoji"))
-  implementation(project(":util"))
+  implementation(project(":libraries:gemoji"))
+  implementation(project(":libraries:kotlinutil"))
+  implementation(project(":libraries:util"))
 
   // Support libs
-  implementation(deps.android.support.annotations)
-  implementation(deps.android.support.appCompat)
-  implementation(deps.android.support.compat)
-  implementation(deps.android.support.constraintLayout)
-  implementation(deps.android.support.customTabs)
-  implementation(deps.android.support.design)
-  debugImplementation(deps.android.support.drawerLayout)
-  implementation(deps.android.support.palette)
-  implementation(deps.android.support.viewPager)
-  implementation(deps.android.support.swipeRefresh)
-  implementation(deps.android.support.legacyAnnotations)
+  implementation(deps.android.androidx.annotations)
+  implementation(deps.android.androidx.appCompat)
+  implementation(deps.android.androidx.core)
+  implementation(deps.android.androidx.constraintLayout)
+  implementation(deps.android.androidx.customTabs)
+  implementation(deps.android.androidx.design)
+  implementation(deps.android.androidx.emoji)
+  implementation(deps.android.androidx.emojiAppcompat)
+  implementation(deps.android.androidx.fragment)
+  implementation(deps.android.androidx.fragmentKtx)
+  debugImplementation(deps.android.androidx.drawerLayout)
+  implementation(deps.android.androidx.palette)
+  implementation(deps.android.androidx.paletteKtx)
+  implementation(deps.android.androidx.preference)
+  implementation(deps.android.androidx.preferenceKtx)
+  implementation(deps.android.androidx.viewPager)
+  implementation(deps.android.androidx.swipeRefresh)
+  implementation(deps.android.androidx.legacyAnnotations)
 
   // Arch components
-  implementation(deps.android.arch.lifecycle.extensions)
-  kapt(deps.android.arch.lifecycle.apt)
-  implementation(deps.android.arch.room.runtime)
-  implementation(deps.android.arch.room.rxJava2)
-  kapt(deps.android.arch.room.apt)
+  implementation(deps.android.androidx.lifecycle.extensions)
+  kapt(deps.android.androidx.lifecycle.apt)
+  implementation(deps.android.androidx.room.runtime)
+  implementation(deps.android.androidx.room.rxJava2)
+  kapt(deps.android.androidx.room.apt)
 
   // Kotlin
-  implementation(deps.android.ktx)
+  implementation(deps.android.androidx.coreKtx)
   implementation(deps.kotlin.stdlib.jdk7)
-  implementation(deps.kotlin.stdlib.jdk7)
+  implementation(deps.kotlin.coroutines)
+  implementation(deps.kotlin.coroutinesAndroid)
 
   // Moshi
   kapt(deps.moshi.compiler)
@@ -420,13 +445,12 @@ dependencies {
   implementation(deps.android.firebase.perf)
 
   // Square/JW
-  implementation(deps.butterKnife.runtime)
-  kapt(deps.butterKnife.apt)
   implementation(deps.okhttp.core)
   implementation(deps.misc.okio)
   implementation(deps.retrofit.core)
   implementation(deps.retrofit.moshi)
   implementation(deps.retrofit.rxJava2)
+  implementation(deps.retrofit.coroutines)
   implementation(deps.rx.android)
   implementation(deps.rx.java)
   implementation(deps.rx.binding.core)
@@ -455,15 +479,20 @@ dependencies {
   implementation(deps.autoDispose.core)
   implementation(deps.autoDispose.android)
   implementation(deps.autoDispose.kotlin)
-  errorprone(deps.errorProne.build.core)
+  implementation(deps.autoDispose.lifecycle)
+  implementation(deps.autoDispose.lifecycleKtx)
   compileOnly(deps.errorProne.compileOnly.annotations)
-  implementation(deps.barber.api)
-  kapt(deps.barber.apt)
+  implementation(deps.misc.flick)
+  implementation(deps.misc.gestureViews)
+  implementation(deps.misc.inboxRecyclerView)
   implementation(deps.misc.lottie)
   implementation(deps.misc.recyclerViewAnimators)
   implementation(deps.rx.preferences)
   implementation(deps.rx.relay)
   implementation(deps.misc.moshiLazyAdapters)
+  implementation(deps.autoDispose.androidKtx)
+  implementation(deps.autoDispose.androidArch)
+  implementation(deps.autoDispose.androidArchKtx)
 
   // Apollo
   implementation(deps.apollo.androidSupport)
@@ -476,19 +505,23 @@ dependencies {
   debugImplementation(deps.stetho.debug.okhttp)
   debugImplementation(deps.stetho.debug.timber)
 
+  // Flipper
+  debugImplementation(deps.misc.debug.flipper)
+
   // Hyperion
-  releaseImplementation(deps.hyperion.core.release)
-  debugImplementation(deps.hyperion.core.debug)
-  debugImplementation(deps.hyperion.plugins.appInfo)
-  debugImplementation(deps.hyperion.plugins.attr)
-  debugImplementation(deps.hyperion.plugins.chuck)
-  debugImplementation(deps.hyperion.plugins.crash)
-  debugImplementation(deps.hyperion.plugins.disk)
+//  releaseImplementation(deps.hyperion.core.release)
+//  debugImplementation(deps.hyperion.core.debug)
+//  debugImplementation(deps.hyperion.plugins.appInfo)
+//  debugImplementation(deps.hyperion.plugins.attr)
+//  debugImplementation(deps.hyperion.plugins.chuck)
+//  debugImplementation(deps.hyperion.plugins.crash)
+//  debugImplementation(deps.hyperion.plugins.disk)
 //  debugImplementation(deps.hyperion.plugins.geigerCounter)
-  debugImplementation(deps.hyperion.plugins.measurement)
-  debugImplementation(deps.hyperion.plugins.phoenix)
-  debugImplementation(deps.hyperion.plugins.recorder)
-  debugImplementation(deps.hyperion.plugins.sharedPreferences)
+//  debugImplementation(deps.hyperion.plugins.measurement)
+//  debugImplementation(deps.hyperion.plugins.phoenix)
+//  debugImplementation(deps.hyperion.plugins.recorder)
+//  debugImplementation(deps.hyperion.plugins.sharedPreferences)
+//  debugImplementation(deps.hyperion.plugins.timber)
 
   // Dagger
   kapt(deps.dagger.apt.compiler)
@@ -496,14 +529,10 @@ dependencies {
   compileOnly(deps.misc.javaxInject)
   implementation(deps.dagger.runtime)
   implementation(deps.dagger.android.runtime)
+  implementation(deps.dagger.android.support)
 
   // Inspector exposed for dagger
   implementation(deps.inspector.core)
-
-  // Conductor
-  implementation(deps.conductor.core)
-  implementation(deps.conductor.autoDispose)
-  implementation(deps.conductor.support)
 
   implementation(deps.misc.jsr305)
 

@@ -16,64 +16,55 @@
 
 package io.sweers.catchup.ui.base
 
+import android.annotation.SuppressLint
 import android.content.res.ColorStateList
+import android.graphics.drawable.Drawable
 import android.text.format.DateUtils
 import android.view.View
+import android.view.View.OnClickListener
+import android.view.View.OnLongClickListener
 import android.widget.TextView
 import androidx.annotation.ColorInt
+import androidx.appcompat.content.res.AppCompatResources
+import androidx.appcompat.widget.AppCompatTextView
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.ConstraintSet
 import androidx.core.graphics.drawable.DrawableCompat
+import androidx.core.text.PrecomputedTextCompat
 import androidx.core.view.isVisible
-import androidx.recyclerview.widget.RxViewHolder
-import butterknife.BindView
-import butterknife.ButterKnife
-import butterknife.Unbinder
-import com.jakewharton.rxbinding2.view.clicks
-import com.jakewharton.rxbinding2.view.longClicks
+import androidx.core.widget.TextViewCompat
+import androidx.recyclerview.widget.RecyclerView.ViewHolder
 import io.sweers.catchup.R
 import io.sweers.catchup.service.api.BindableCatchUpItemViewHolder
 import io.sweers.catchup.service.api.CatchUpItem
-import io.sweers.catchup.service.api.LinkHandler
-import io.sweers.catchup.util.format
+import io.sweers.catchup.service.api.Mark
 import io.sweers.catchup.util.hide
+import io.sweers.catchup.util.kotlin.format
 import io.sweers.catchup.util.show
 import io.sweers.catchup.util.showIf
+import kotterknife.bindView
 import org.threeten.bp.Instant
 
-class CatchUpItemViewHolder(itemView: View) : RxViewHolder(
-    itemView), BindableCatchUpItemViewHolder {
+class CatchUpItemViewHolder(itemView: View) : ViewHolder(itemView), BindableCatchUpItemViewHolder {
 
-  @BindView(R.id.container)
-  internal lateinit var container: androidx.constraintlayout.widget.ConstraintLayout
-  @BindView(R.id.tags_container)
-  internal lateinit var tagsContainer: View
-  @BindView(R.id.title)
-  internal lateinit var title: TextView
-  @BindView(R.id.score)
-  internal lateinit var score: TextView
-  @BindView(R.id.score_divider)
-  internal lateinit var scoreDivider: TextView
-  @BindView(R.id.timestamp)
-  internal lateinit var timestamp: TextView
-  @BindView(R.id.author)
-  internal lateinit var author: TextView
-  @BindView(R.id.author_divider)
-  internal lateinit var authorDivider: TextView
-  @BindView(R.id.source)
-  internal lateinit var source: TextView
-  @BindView(R.id.comments)
-  internal lateinit var comments: TextView
-  @BindView(R.id.tag)
-  internal lateinit var tag: TextView
-  @BindView(R.id.tag_divider)
-  internal lateinit var tagDivider: View
-  private var unbinder: Unbinder? = null
+  internal val container by bindView<ConstraintLayout>(R.id.container)
+  internal val tagsContainer by bindView<View>(R.id.tags_container)
+  internal val title by bindView<AppCompatTextView>(R.id.title)
+  internal val score by bindView<TextView>(R.id.score)
+  internal val scoreDivider by bindView<TextView>(R.id.score_divider)
+  internal val timestamp by bindView<TextView>(R.id.timestamp)
+  internal val author by bindView<TextView>(R.id.author)
+  internal val authorDivider by bindView<TextView>(R.id.author_divider)
+  internal val source by bindView<TextView>(R.id.source)
+  internal val mark by bindView<TextView>(R.id.mark)
+  internal val tag by bindView<TextView>(R.id.tag)
+  internal val tagDivider by bindView<View>(R.id.tag_divider)
 
+  private val markBackground: Drawable
   private val constraintSet: ConstraintSet
 
   init {
-    unbinder?.unbind()
-    unbinder = ButterKnife.bind(this, itemView)
+    markBackground = mark.background
     constraintSet = ConstraintSet()
   }
 
@@ -83,46 +74,52 @@ class CatchUpItemViewHolder(itemView: View) : RxViewHolder(
     score.setTextColor(color)
     tag.setTextColor(color)
     scoreDivider.setTextColor(color)
-    DrawableCompat.setTintList(comments.compoundDrawables[1], ColorStateList.valueOf(color))
+    tintMark(color)
+  }
+
+  private fun tintMark(@ColorInt color: Int) {
+    if (mark.background == null) {
+      mark.background = markBackground.mutate()
+    }
+    DrawableCompat.setTintList(mark.compoundDrawables[1], ColorStateList.valueOf(color))
+  }
+
+  fun setLongClickHandler(longClickHandler: OnLongClickListener?) {
+    container.setOnLongClickListener(longClickHandler)
   }
 
   override fun bind(item: CatchUpItem,
-      linkHandler: LinkHandler,
-      itemClickHandler: ((String) -> Any)?,
-      commentClickHandler: ((String) -> Any)?) {
+      itemClickHandler: OnClickListener?,
+      markClickHandler: OnClickListener?,
+      longClickHandler: OnLongClickListener?) {
     title(item.title.trim())
     score(item.score)
     timestamp(item.timestamp)
     author(item.author?.trim())
     source(item.source?.trim())
-    comments(item.commentCount)
     tag(item.tag?.trim())
 
-    val itemClickUrl = item.itemClickUrl ?: item.itemCommentClickUrl
-    itemClickUrl?.let {
-      if (itemClickHandler != null) {
-        itemClickHandler(it)
-      }
-    }
-    item.itemCommentClickUrl?.let {
-      if (commentClickHandler != null) {
-        commentClickHandler(it)
-      }
-    } ?: hideComments()
+    container.setOnClickListener(itemClickHandler)
+    setLongClickHandler(longClickHandler)
 
-    if (item.hideComments) {
-      hideComments()
-    }
+    item.mark?.let { sourceMark ->
+      mark(sourceMark)
+      if (markClickHandler != null) {
+        mark.isClickable = true
+        mark.isFocusable = true
+        mark.setOnClickListener(markClickHandler)
+      } else {
+        mark.background = null
+        mark.isClickable = false
+        mark.isFocusable = false
+      }
+    } ?: run { hideMark() }
   }
 
-  override fun itemClicks() = container.clicks()
-
-  override fun itemLongClicks() = container.longClicks()
-
-  override fun itemCommentClicks() = comments.clicks()
-
   fun title(titleText: CharSequence?) {
-    title.text = titleText
+    title.setTextFuture(
+        PrecomputedTextCompat.getTextFuture(titleText ?: "",
+            TextViewCompat.getTextMetricsParams(title), null))
   }
 
   fun score(scoreValue: Pair<String, Int>?) {
@@ -231,12 +228,28 @@ class CatchUpItemViewHolder(itemView: View) : RxViewHolder(
     }
   }
 
-  fun comments(commentsCount: Int) {
-    comments.show()
-    comments.text = commentsCount.toLong().format()
+  @SuppressLint("SetTextI18n")
+  fun mark(sourceMark: Mark) {
+    mark.show()
+    sourceMark.text?.let { text ->
+      val finalText = if (sourceMark.formatTextAsCount) {
+        text.toLong().format()
+      } else text
+      mark.text = "${sourceMark.textPrefix.orEmpty()}$finalText"
+    }
+
+    sourceMark.icon?.let { color ->
+      mark.setCompoundDrawablesWithIntrinsicBounds(null,
+          AppCompatResources.getDrawable(mark.context, color),
+          null,
+          null)
+
+      tintMark(sourceMark.iconTintColor ?: score.currentTextColor)
+    }
+
   }
 
-  fun hideComments() = comments.hide()
+  fun hideMark() = mark.hide()
 
   private fun getVerticalBias(sourceBlank: Boolean,
       authorBlank: Boolean) = if (sourceBlank && authorBlank) {

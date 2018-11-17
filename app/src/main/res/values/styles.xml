@@ -14,7 +14,7 @@
   ~ limitations under the License.
   -->
 
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
 
   <style name="None">
   </style>
@@ -29,6 +29,21 @@
   </style>
 
   <style name="CatchUp" parent="Base">
+  </style>
+
+  <style name="CatchUp.TransparentFullscreen">
+    <item name="android:windowIsTranslucent">true</item>
+    <item name="android:windowBackground">@android:color/transparent</item>
+    <item name="android:colorBackgroundCacheHint">@null</item>
+    <item name="android:windowSharedElementEnterTransition">
+      @transition/image_viewer
+    </item>
+  </style>
+
+  <style name="CatchUp.Launcher" parent="@style/CatchUp">
+    <item name="android:windowBackground">@drawable/preview_window</item>
+    <item name="android:windowLightStatusBar" tools:targetApi="m">@bool/isInDayMode</item>
+    <item name="android:windowLightNavigationBar" tools:targetApi="o_mr1">@bool/isInDayMode</item>
   </style>
 
   <style name="CatchUp.TextView" parent="android:Widget.TextView">

@@ -25,7 +25,6 @@ import dagger.Module
 import dagger.Provides
 import dagger.Reusable
 import dagger.multibindings.IntoMap
-import io.reactivex.Maybe
 import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.SingleEmitter
@@ -33,6 +32,7 @@ import io.sweers.catchup.service.api.CatchUpItem
 import io.sweers.catchup.service.api.DataRequest
 import io.sweers.catchup.service.api.DataResult
 import io.sweers.catchup.service.api.LinkHandler
+import io.sweers.catchup.service.api.Mark.Companion.createCommentMark
 import io.sweers.catchup.service.api.Service
 import io.sweers.catchup.service.api.ServiceException
 import io.sweers.catchup.service.api.ServiceKey
@@ -61,7 +61,7 @@ internal class HackerNewsService @Inject constructor(
 
   override fun meta() = serviceMeta
 
-  override fun fetchPage(request: DataRequest): Maybe<DataResult> {
+  override fun fetchPage(request: DataRequest): Single<DataResult> {
     val page = request.pageId.toInt()
     val itemsPerPage = 25 // TODO Pref this
     return Single
@@ -115,24 +115,25 @@ internal class HackerNewsService @Inject constructor(
                 timestamp = realTime(),
                 author = by,
                 source = url?.let { HttpUrl.parse(it)!!.host() },
-                commentCount = kids?.size ?: 0,
                 tag = realType()?.tag(nullIfStory = true),
                 itemClickUrl = url,
-                itemCommentClickUrl = "https://news.ycombinator.com/item?id=$id",
-                summarizationInfo = SummarizationInfo.from(url)
+                summarizationInfo = SummarizationInfo.from(url),
+                mark = kids?.size?.let {
+                  createCommentMark(count = it,
+                      clickUrl = "https://news.ycombinator.com/item?id=$id")
+                }
             )
           }
         }
         .toList()
         .map { DataResult(it, if (it.isEmpty()) null else (page + 1).toString()) }
-        .toMaybe()
         .onErrorResumeNext { t: Throwable ->
           if (BuildConfig.DEBUG && t is IllegalArgumentException) {
             // Firebase didn't init
-            Maybe.error(ServiceException(
+            Single.error(ServiceException(
                 "Firebase wasn't able to initialize, likely due to missing credentials."))
           } else {
-            Maybe.error(t)
+            Single.error(t)
           }
         }
   }

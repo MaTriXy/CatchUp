@@ -19,14 +19,9 @@ package io.sweers.catchup.ui.activity
 import android.app.Activity
 import android.content.SharedPreferences
 import android.os.Bundle
-import android.view.ViewGroup
+import androidx.fragment.app.transaction
 import androidx.recyclerview.widget.RecyclerView.RecycledViewPool
-import butterknife.BindView
-import butterknife.ButterKnife
-import com.bluelinelabs.conductor.Conductor
-import com.bluelinelabs.conductor.Router
-import com.bluelinelabs.conductor.RouterTransaction
-import com.uber.autodispose.kotlin.autoDisposable
+import com.uber.autodispose.autoDisposable
 import dagger.Binds
 import dagger.Provides
 import dagger.multibindings.Multibinds
@@ -39,15 +34,15 @@ import io.sweers.catchup.service.api.LinkHandler
 import io.sweers.catchup.service.api.Service
 import io.sweers.catchup.service.api.ServiceMeta
 import io.sweers.catchup.serviceregistry.ResolvedCatchUpServiceRegistry
-import io.sweers.catchup.ui.base.BaseActivity
-import io.sweers.catchup.ui.controllers.PagerController
-import io.sweers.catchup.ui.controllers.service.StorageBackedService
+import io.sweers.catchup.ui.base.InjectingBaseActivity
+import io.sweers.catchup.ui.fragments.PagerFragment
+import io.sweers.catchup.ui.fragments.service.StorageBackedService
 import io.sweers.catchup.util.customtabs.CustomTabActivityHelper
 import javax.inject.Inject
 import javax.inject.Provider
 import javax.inject.Qualifier
 
-class MainActivity : BaseActivity() {
+class MainActivity : InjectingBaseActivity() {
 
   @Inject
   internal lateinit var customTab: CustomTabActivityHelper
@@ -55,11 +50,6 @@ class MainActivity : BaseActivity() {
   internal lateinit var linkManager: LinkManager
   @Inject
   internal lateinit var syllabus: Syllabus
-
-  @BindView(R.id.controller_container)
-  internal lateinit var container: ViewGroup
-
-  private lateinit var router: Router
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
@@ -75,18 +65,10 @@ class MainActivity : BaseActivity() {
     val viewGroup = viewContainer.forActivity(this)
     layoutInflater.inflate(R.layout.activity_main, viewGroup)
 
-    ButterKnife.bind(this).doOnDestroy { unbind() }
-
-    router = Conductor.attachRouter(this, container, savedInstanceState)
-    if (!router.hasRootController()) {
-      router.setRoot(RouterTransaction.with(PagerController()))
-    }
-  }
-
-
-  override fun onBackPressed() {
-    if (!router.handleBack()) {
-      super.onBackPressed()
+    if (savedInstanceState == null) {
+      supportFragmentManager.transaction {
+        add(R.id.fragment_container, PagerFragment())
+      }
     }
   }
 
@@ -115,11 +97,12 @@ class MainActivity : BaseActivity() {
           sharedPreferences: SharedPreferences,
           services: Map<String, @JvmSuppressWildcards Provider<Service>>): Map<String, Provider<Service>> {
         return services
-            .filter { sharedPreferences.getBoolean(serviceMetas[it.key]!!.enabledKey, true) }
+            .filter {
+              serviceMetas[it.key]!!.enabled && sharedPreferences.getBoolean(
+                  serviceMetas[it.key]!!.enabledPreferenceKey, true)
+            }
             .mapValues { (_, value) ->
-              Provider<Service> {
-                StorageBackedService(serviceDao, value.get())
-              }
+              Provider { StorageBackedService(serviceDao, value.get()) }
             }
       }
     }

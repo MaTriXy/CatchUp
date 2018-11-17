@@ -28,10 +28,10 @@ import android.util.DisplayMetrics
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import androidx.core.content.systemService
+import androidx.core.content.getSystemService
 import androidx.core.net.toUri
 import com.mattprecious.telescope.Lens
-import com.uber.autodispose.kotlin.autoDisposable
+import com.uber.autodispose.autoDisposable
 import io.reactivex.Single
 import io.reactivex.SingleObserver
 import io.reactivex.android.schedulers.AndroidSchedulers
@@ -139,7 +139,8 @@ internal class BugReportLens @Inject constructor(private val activity: Activity,
 
   private fun uploadIssue(report: Report, body: StringBuilder, logs: File?) {
     val channelId = "bugreports"
-    val notificationManager = activity.systemService<NotificationManager>()
+    val notificationManager = activity.getSystemService<NotificationManager>()
+        ?: throw IllegalStateException("No notificationmanager?")
     if (VERSION.SDK_INT >= VERSION_CODES.O) {
       val channels = notificationManager.notificationChannels
       if (channels.none { it.id == channelId }) {
@@ -253,7 +254,7 @@ internal class BugReportLens @Inject constructor(private val activity: Activity,
   }
 
   private fun getDensityString(displayMetrics: DisplayMetrics) =
-      when (displayMetrics.densityDpi) {
+      when (val dpi = displayMetrics.densityDpi) {
         DisplayMetrics.DENSITY_LOW -> "ldpi"
         DisplayMetrics.DENSITY_MEDIUM -> "mdpi"
         DisplayMetrics.DENSITY_HIGH -> "hdpi"
@@ -261,6 +262,6 @@ internal class BugReportLens @Inject constructor(private val activity: Activity,
         DisplayMetrics.DENSITY_XXHIGH -> "xxhdpi"
         DisplayMetrics.DENSITY_XXXHIGH -> "xxxhdpi"
         DisplayMetrics.DENSITY_TV -> "tvdpi"
-        else -> displayMetrics.densityDpi.toString()
+        else -> dpi.toString()
       }
 }

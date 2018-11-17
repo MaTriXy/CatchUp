@@ -23,11 +23,12 @@ import dagger.Module
 import dagger.Provides
 import dagger.Reusable
 import dagger.multibindings.IntoMap
-import io.reactivex.Maybe
+import io.reactivex.Single
 import io.sweers.catchup.service.api.CatchUpItem
 import io.sweers.catchup.service.api.DataRequest
 import io.sweers.catchup.service.api.DataResult
 import io.sweers.catchup.service.api.LinkHandler
+import io.sweers.catchup.service.api.Mark.Companion.createCommentMark
 import io.sweers.catchup.service.api.Service
 import io.sweers.catchup.service.api.ServiceKey
 import io.sweers.catchup.service.api.ServiceMeta
@@ -61,7 +62,7 @@ internal class RedditService @Inject constructor(
 
   override fun meta() = serviceMeta
 
-  override fun fetchPage(request: DataRequest): Maybe<DataResult> {
+  override fun fetchPage(request: DataRequest): Single<DataResult> {
     // We special case the front page
     return api.frontPage(25, request.pageId.nullIfBlank())
         .map { redditListingRedditResponse ->
@@ -75,11 +76,13 @@ internal class RedditService @Inject constructor(
                     timestamp = it.createdUtc,
                     author = "/u/" + it.author,
                     source = it.domain ?: "self",
-                    commentCount = it.commentsCount,
                     tag = it.subreddit,
                     itemClickUrl = it.url,
-                    itemCommentClickUrl = "https://reddit.com/comments/${it.id}",
-                    summarizationInfo = SummarizationInfo.from(it.url, it.selftext)
+                    summarizationInfo = SummarizationInfo.from(it.url, it.selftext),
+                    mark = createCommentMark(
+                        count = it.commentsCount,
+                        clickUrl = "https://reddit.com/comments/${it.id}"
+                    )
                 )
               }
           DataResult(data, redditListingRedditResponse.data.after)

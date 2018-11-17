@@ -36,8 +36,8 @@ android {
     targetSdkVersion(deps.android.build.targetSdkVersion)
   }
   compileOptions {
-    setSourceCompatibility(JavaVersion.VERSION_1_8)
-    setTargetCompatibility(JavaVersion.VERSION_1_8)
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
   }
   lintOptions {
     setLintConfig(file("lint.xml"))
@@ -57,7 +57,7 @@ android {
 
 tasks.withType<KotlinCompile> {
   kotlinOptions {
-    freeCompilerArgs = listOf("-Xjsr305=strict")
+    freeCompilerArgs = build.standardFreeKotlinCompilerArgs
   }
 }
 
@@ -68,8 +68,7 @@ kapt {
 }
 
 dependencies {
-  kapt(kapt(deps.dagger.apt.compiler))
-  kapt(kapt(deps.crumb.compiler))
+  kapt(deps.crumb.compiler)
   kapt(project(":service-registry:service-registry-compiler"))
 
   implementation(project(":service-registry:service-registry-annotations"))
@@ -85,4 +84,6 @@ dependencies {
   api(project(":services:dribbble"))
   api(project(":services:github"))
 //  api(project(":services:newsapi"))
+  api(project(":services:unsplash"))
+  api(project(":services:uplabs"))
 }

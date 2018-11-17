@@ -17,7 +17,6 @@
 package io.sweers.catchup.data
 
 import android.content.Context
-import androidx.collection.ArrayMap
 import io.sweers.catchup.P
 import io.sweers.catchup.data.model.ServiceData
 import io.sweers.catchup.util.injection.qualifiers.ApplicationContext
@@ -27,8 +26,8 @@ import okhttp3.MediaType
 import okhttp3.Protocol
 import okhttp3.Response
 import okhttp3.ResponseBody
-import okio.Okio
-import java.io.IOException
+import okio.buffer
+import okio.source
 
 /**
  * An interceptor that rewrites the response with mocked data instead.
@@ -37,7 +36,6 @@ import java.io.IOException
  */
 class MockDataInterceptor(@ApplicationContext private val context: Context) : Interceptor {
 
-  @Throws(IOException::class)
   override fun intercept(chain: Interceptor.Chain): Response {
     val request = chain.request()
     val url = request.url()
@@ -48,8 +46,8 @@ class MockDataInterceptor(@ApplicationContext private val context: Context) : In
       Response.Builder().request(request)
           .body(ResponseBody.create(
               MediaType.parse("application/json"),
-              Okio.buffer(Okio.source(context.assets
-                  .open(formatUrl(serviceData, url))))
+              context.assets
+                  .open(formatUrl(serviceData, url)).source().buffer()
                   .readUtf8()))
           .code(200)
           .protocol(Protocol.HTTP_1_1)
@@ -63,8 +61,7 @@ class MockDataInterceptor(@ApplicationContext private val context: Context) : In
 
     // TODO Generate this?
     // Can also use arrayMapOf()
-    private val SUPPORTED_ENDPOINTS = object : ArrayMap<String, ServiceData>() {
-      init {
+    private val SUPPORTED_ENDPOINTS = mapOf<String, ServiceData>(
 //        put(RedditApi.HOST,
 //            ServiceData.Builder("r").addEndpoint("/")
 //                .build())
@@ -84,8 +81,7 @@ class MockDataInterceptor(@ApplicationContext private val context: Context) : In
 //        put(DribbbleApi.HOST,
 //            ServiceData.Builder("dr").addEndpoint("/v1/shots")
 //                .build())
-      }
-    }
+    )
 
     private fun formatUrl(service: ServiceData, url: HttpUrl): String {
       var lastSegment = url.pathSegments()[url.pathSize() - 1]
