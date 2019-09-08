@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2018 Zac Sweers
+ * Copyright (C) 2019. Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,10 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.sweers.catchup.changes
 
-import `in`.uncod.android.bypass.Bypass
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.SharedPreferences
@@ -29,6 +27,7 @@ import androidx.annotation.ColorInt
 import androidx.appcompat.widget.Toolbar
 import androidx.core.view.ViewCompat
 import androidx.core.view.doOnLayout
+import androidx.lifecycle.lifecycleScope
 import com.getkeepsafe.taptargetview.TapTarget
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import dagger.Lazy
@@ -39,7 +38,7 @@ import io.sweers.catchup.edu.Syllabus
 import io.sweers.catchup.edu.id
 import io.sweers.catchup.service.api.UrlMeta
 import io.sweers.catchup.ui.FontHelper
-import io.sweers.catchup.util.ColorUtils
+import io.sweers.catchup.base.ui.ColorUtils
 import io.sweers.catchup.util.LinkTouchMovementMethod
 import io.sweers.catchup.util.TouchableUrlSpan
 import io.sweers.catchup.util.UiUtil
@@ -48,14 +47,17 @@ import io.sweers.catchup.util.markdown
 import io.sweers.catchup.util.parseMarkdownAndPlainLinks
 import io.sweers.catchup.util.resolveActivity
 import io.sweers.catchup.util.show
+import kotlinx.coroutines.launch
+import io.noties.markwon.Markwon
 import javax.inject.Inject
 
 class ChangelogHelper @Inject constructor(
-    private val linkManager: LinkManager,
-    private val bypass: Lazy<Bypass>,
-    private val fontHelper: FontHelper,
-    private val syllabus: Syllabus,
-    private val sharedPreferences: SharedPreferences) {
+  private val linkManager: LinkManager,
+  private val markwon: Lazy<Markwon>,
+  private val fontHelper: FontHelper,
+  private val syllabus: Syllabus,
+  private val sharedPreferences: SharedPreferences
+) {
 
   fun bindWith(toolbar: Toolbar, @ColorInt hintColor: Int, linkColor: () -> Int) {
     val changelog = toolbar.resources.getString(R.string.changelog_text)
@@ -95,9 +97,11 @@ class ChangelogHelper @Inject constructor(
   }
 
   @SuppressLint("InflateParams")
-  private fun showChangelog(changelog: String,
-      context: Context,
-      @ColorInt highlightColor: Int): Boolean {
+  private fun showChangelog(
+    changelog: String,
+    context: Context,
+    @ColorInt highlightColor: Int
+  ): Boolean {
     // TODO Make this a custom fragment instead, which should make the animation less jarring
     BottomSheetDialog(context)
         .apply {
@@ -117,15 +121,18 @@ class ChangelogHelper @Inject constructor(
                 .markdown()
                 .parseMarkdownAndPlainLinks(
                     on = changesTextView,
-                    with = bypass.get(),
+                    with = markwon.get(),
                     alternateSpans = { url: String ->
                       setOf(
                           object : TouchableUrlSpan(url,
                               ColorStateList.valueOf(highlightColor),
                               ColorUtils.modifyAlpha(highlightColor, 0.1f)) {
                             override fun onClick(url: String) {
-                              linkManager.openUrl(
-                                  UrlMeta(url, highlightColor, context.resolveActivity()))
+                              val resolvedActivity = context.resolveActivity()
+                              resolvedActivity.lifecycleScope.launch {
+                                linkManager.openUrl(
+                                    UrlMeta(url, highlightColor, resolvedActivity))
+                              }
                             }
                           },
                           StyleSpan(Typeface.BOLD)
@@ -164,5 +171,4 @@ class ChangelogHelper @Inject constructor(
         .show()
     return true
   }
-
 }

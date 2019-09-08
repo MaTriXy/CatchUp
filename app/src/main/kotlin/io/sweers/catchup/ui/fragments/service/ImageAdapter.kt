@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2018 Zac Sweers
+ * Copyright (C) 2019. Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.sweers.catchup.ui.fragments.service
 
 import android.animation.ObjectAnimator
@@ -52,16 +51,22 @@ import io.sweers.catchup.R
 import io.sweers.catchup.R.layout
 import io.sweers.catchup.service.api.BindableCatchUpItemViewHolder
 import io.sweers.catchup.service.api.CatchUpItem
+import io.sweers.catchup.service.api.TemporaryScopeHolder
+import io.sweers.catchup.service.api.UrlMeta
+import io.sweers.catchup.service.api.temporaryScope
 import io.sweers.catchup.ui.base.DataLoadingSubject
 import io.sweers.catchup.ui.widget.BadgedFourThreeImageView
 import io.sweers.catchup.util.ObservableColorMatrix
 import io.sweers.catchup.util.UiUtil
 import io.sweers.catchup.util.glide.CatchUpTarget
 import io.sweers.catchup.util.isInNightMode
+import kotlinx.coroutines.channels.SendChannel
 
-internal class ImageAdapter(private val context: Context,
-    private val bindDelegate: (ImageItem, ImageHolder) -> Unit)
-  : DisplayableItemAdapter<ImageItem, ViewHolder>(columnCount = 2),
+internal class ImageAdapter(
+  private val context: Context,
+  private val bindDelegate: (ImageItem, ImageHolder, clicksChannel: SendChannel<UrlMeta>) -> Unit
+) :
+  DisplayableItemAdapter<ImageItem, ViewHolder>(columnCount = 2),
     DataLoadingSubject.DataLoadingCallbacks,
     PreloadModelProvider<ImageItem> {
 
@@ -111,12 +116,12 @@ internal class ImageAdapter(private val context: Context,
   }
 
   @TargetApi(Build.VERSION_CODES.M)
-  override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+  override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
     val layoutInflater = LayoutInflater.from(parent.context)
     return when (viewType) {
       TYPE_ITEM -> {
         ImageHolder(LayoutInflater.from(parent.context)
-            .inflate(R.layout.image_item, parent, false), loadingPlaceholders)
+            .inflate(layout.image_item, parent, false), loadingPlaceholders)
             .apply {
               image.setBadgeColor(
                   INITIAL_GIF_BADGE_COLOR)
@@ -125,9 +130,9 @@ internal class ImageAdapter(private val context: Context,
               image.setOnTouchListener { _, event ->
                 // check if it's an event we care about, else bail fast
                 val action = event.action
-                if (!(action == MotionEvent.ACTION_DOWN
-                        || action == MotionEvent.ACTION_UP
-                        || action == MotionEvent.ACTION_CANCEL)) {
+                if (!(action == MotionEvent.ACTION_DOWN ||
+                        action == MotionEvent.ACTION_UP ||
+                        action == MotionEvent.ACTION_CANCEL)) {
                   return@setOnTouchListener false
                 }
 
@@ -156,7 +161,7 @@ internal class ImageAdapter(private val context: Context,
     }
   }
 
-  override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+  override fun onBindViewHolder(holder: ViewHolder, position: Int) {
     when (getItemViewType(position)) {
       TYPE_ITEM -> {
         val imageItem = data[position]
@@ -167,7 +172,7 @@ internal class ImageAdapter(private val context: Context,
         }
         // TODO This is kind of ugly but not sure what else to do. Holder can't be an inner class to avoid mem leaks
         imageHolder.backingImageItem = imageItem
-        bindDelegate(imageItem, holder)
+        bindDelegate(imageItem, holder, clicksChannel())
             .also {
               holder.backingImageItem = null
             }
@@ -177,7 +182,8 @@ internal class ImageAdapter(private val context: Context,
   }
 
   @SuppressLint("NewApi")
-  override fun onViewRecycled(holder: RecyclerView.ViewHolder) {
+  override fun onViewRecycled(holder: ViewHolder) {
+    super.onViewRecycled(holder)
     if (holder is ImageHolder) {
       // reset the badge & ripple which are dynamically determined
       GlideApp.with(holder.itemView).clear(holder.image)
@@ -220,19 +226,24 @@ internal class ImageAdapter(private val context: Context,
     notifyItemRemoved(loadingPos)
   }
 
-  internal class ImageHolder(itemView: View,
-      private val loadingPlaceholders: Array<ColorDrawable>)
-    : ViewHolder(itemView), BindableCatchUpItemViewHolder {
+  internal class ImageHolder(
+    itemView: View,
+    private val loadingPlaceholders: Array<ColorDrawable>
+  ) :
+    ViewHolder(itemView), BindableCatchUpItemViewHolder, TemporaryScopeHolder by temporaryScope() {
 
     internal var backingImageItem: ImageItem? = null
     internal val image: BadgedFourThreeImageView = itemView as BadgedFourThreeImageView
 
     override fun itemView(): View = itemView
 
-    override fun bind(item: CatchUpItem,
-        itemClickHandler: OnClickListener?,
-        markClickHandler: OnClickListener?,
-        longClickHandler: OnLongClickListener?) {
+    override fun bind(
+      item: CatchUpItem,
+      itemClickHandler: OnClickListener?,
+      markClickHandler: OnClickListener?,
+      longClickHandler: OnLongClickListener?
+    ) {
+      val scope = newScope()
       backingImageItem?.let { imageItem ->
         val (x, y) = imageItem.imageInfo.bestSize ?: Pair(image.measuredWidth, image.measuredHeight)
         GlideApp.with(itemView.context)
@@ -245,11 +256,13 @@ internal class ImageAdapter(private val context: Context,
             )
             .transition(DrawableTransitionOptions.withCrossFade())
             .listener(object : RequestListener<Drawable> {
-              override fun onResourceReady(resource: Drawable,
-                  model: Any,
-                  target: Target<Drawable>,
-                  dataSource: DataSource,
-                  isFirstResource: Boolean): Boolean {
+              override fun onResourceReady(
+                resource: Drawable,
+                model: Any,
+                target: Target<Drawable>,
+                dataSource: DataSource,
+                isFirstResource: Boolean
+              ): Boolean {
                 itemView().setOnClickListener(itemClickHandler)
                 itemView().setOnLongClickListener(longClickHandler)
                 if (!imageItem.hasFadedIn) {
@@ -261,7 +274,7 @@ internal class ImageAdapter(private val context: Context,
                       0f,
                       1f)
                       .apply {
-                        addUpdateListener { _ ->
+                        addUpdateListener {
                           // just animating the color matrix does not invalidate the
                           // drawable so need this update listener.  Also have to create a
                           // new CMCF as the matrix is immutable :(
@@ -280,12 +293,14 @@ internal class ImageAdapter(private val context: Context,
                 return false
               }
 
-              override fun onLoadFailed(e: GlideException?,
-                  model: Any,
-                  target: Target<Drawable>,
-                  isFirstResource: Boolean) = false
+              override fun onLoadFailed(
+                e: GlideException?,
+                model: Any,
+                target: Target<Drawable>,
+                isFirstResource: Boolean
+              ) = false
             })
-            .into(CatchUpTarget(image, false))
+            .into(CatchUpTarget(image, false, scope))
             .clearOnDetach()
         // need both placeholder & background to prevent seeing through image as it fades in
         image.background = loadingPlaceholders[adapterPosition % loadingPlaceholders.size]

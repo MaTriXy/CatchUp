@@ -9,10 +9,6 @@
   },
   {
     "owner": "jakewharton",
-    "name": "RxBinding"
-  },
-  {
-    "owner": "jakewharton",
     "name": "Timber"
   },
   {
@@ -56,16 +52,12 @@
     "name": "AutoDispose"
   },
   {
-    "owner": "hzsweers",
+    "owner": "ZacSweers",
     "name": "Barber"
   },
   {
-    "owner": "hzsweers",
+    "owner": "ZacSweers",
     "name": "Inspector"
-  },
-  {
-    "owner": "hzsweers",
-    "name": "psync"
   },
   {
     "owner": "bumptech",
@@ -152,8 +144,8 @@
     "name": "custom-tabs-client"
   },
   {
-    "owner": "Uncodin",
-    "name": "bypass"
+    "owner": "noties",
+    "name": "markwon"
   },
   {
     "owner": "KeepSafe",
@@ -162,5 +154,9 @@
   {
     "owner": "jhy",
     "name": "jsoup"
+  },
+  {
+    "owner": "chibatching",
+    "name": "Kotpref"
   }
 ]

@@ -18,9 +18,22 @@
 <FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/fragment_container"
+    android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:fitsSystemWindows="true"
-    tools:context=".ui.activity.MainActivity"
-    />
+    >
+
+  <FrameLayout
+      android:id="@+id/fragment_container"
+      android:layout_width="match_parent"
+      android:layout_height="match_parent"
+      tools:context=".ui.activity.MainActivity"
+      />
+
+  <me.saket.inboxrecyclerview.page.ExpandablePageLayout
+      android:id="@+id/detailPage"
+      android:layout_width="match_parent"
+      android:layout_height="match_parent"
+      />
+</FrameLayout>

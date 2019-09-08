@@ -28,47 +28,45 @@ apply {
 
 android {
   compileSdkVersion(deps.android.build.compileSdkVersion)
-  buildToolsVersion(deps.android.build.buildToolsVersion)
 
   defaultConfig {
     minSdkVersion(deps.android.build.minSdkVersion)
     targetSdkVersion(deps.android.build.targetSdkVersion)
     vectorDrawables.useSupportLibrary = true
     buildConfigField("String", "UNSPLASH_API_KEY",
-        "\"${project.properties["catchup_unsplash_api_key"].toString()}\"")
+        "\"${project.properties["catchup_unsplash_api_key"]}\"")
   }
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_1_8
     targetCompatibility = JavaVersion.VERSION_1_8
   }
   lintOptions {
-    setLintConfig(file("lint.xml"))
-    isAbortOnError = true
-    check("InlinedApi")
-    check("NewApi")
-    fatal("NewApi")
-    fatal("InlinedApi")
-    enable("UnusedResources")
-    isCheckReleaseBuilds = true
-    textReport = deps.build.ci
-    textOutput("stdout")
-    htmlReport = !deps.build.ci
-    xmlReport = !deps.build.ci
+    isCheckReleaseBuilds = false
+    isAbortOnError = false
+  }
+  libraryVariants.all {
+    generateBuildConfigProvider?.configure {
+      // Can't enable until we have somewhere else for the token
+//      enabled = false
+    }
   }
 }
 
 tasks.withType<KotlinCompile> {
   kotlinOptions {
     freeCompilerArgs = build.standardFreeKotlinCompilerArgs
+    jvmTarget = "1.8"
   }
 }
 
 kapt {
   correctErrorTypes = true
-  useBuildCache = true
   mapDiagnosticLocations = true
-  arguments {
-    arg("dagger.formatGeneratedSource", "disabled")
+
+  // Compiling with JDK 11+, but kapt doesn't forward source/target versions.
+  javacOptions {
+    option("-source", "8")
+    option("-target", "8")
   }
 }
 

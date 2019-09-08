@@ -29,41 +29,30 @@ apply {
 
 android {
   compileSdkVersion(deps.android.build.compileSdkVersion)
-  buildToolsVersion(deps.android.build.buildToolsVersion)
 
   defaultConfig {
     minSdkVersion(deps.android.build.minSdkVersion)
     targetSdkVersion(deps.android.build.targetSdkVersion)
   }
   compileOptions {
-    sourceCompatibility = JavaVersion.VERSION_1_8
-    targetCompatibility = JavaVersion.VERSION_1_8
+    sourceCompatibility = VERSION_1_8
+    targetCompatibility = VERSION_1_8
   }
   lintOptions {
-    setLintConfig(file("lint.xml"))
-    isAbortOnError = true
-    check("InlinedApi")
-    check("NewApi")
-    fatal("NewApi")
-    fatal("InlinedApi")
-    enable("UnusedResources")
-    isCheckReleaseBuilds = true
-    textReport = deps.build.ci
-    textOutput("stdout")
-    htmlReport = !deps.build.ci
-    xmlReport = !deps.build.ci
+    isCheckReleaseBuilds = false
+    isAbortOnError = false
   }
 }
 
 tasks.withType<KotlinCompile> {
   kotlinOptions {
     freeCompilerArgs = build.standardFreeKotlinCompilerArgs
+    jvmTarget = "1.8"
   }
 }
 
 kapt {
   correctErrorTypes = true
-  useBuildCache = true
   mapDiagnosticLocations = true
 }
 

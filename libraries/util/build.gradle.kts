@@ -13,9 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-import deps
-import deps.versions
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
   id("com.android.library")
@@ -24,7 +22,6 @@ plugins {
 
 android {
   compileSdkVersion(deps.android.build.compileSdkVersion)
-  buildToolsVersion(deps.android.build.buildToolsVersion)
 
   defaultConfig {
     minSdkVersion(deps.android.build.minSdkVersion)
@@ -39,6 +36,18 @@ android {
     findByName("debug")?.java?.srcDirs("src/debug/kotlin")
     findByName("release")?.java?.srcDirs("src/release/kotlin")
     findByName("test")?.java?.srcDirs("src/test/kotlin")
+  }
+  libraryVariants.all {
+    generateBuildConfigProvider?.configure {
+      enabled = false
+    }
+  }
+}
+
+tasks.withType<KotlinCompile> {
+  kotlinOptions {
+    freeCompilerArgs = build.standardFreeKotlinCompilerArgs
+    jvmTarget = "1.8"
   }
 }
 

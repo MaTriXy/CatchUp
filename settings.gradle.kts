@@ -16,10 +16,12 @@
 
 include(
     ":app",
+    ":libraries:base-ui",
     ":libraries:gemoji",
+    ":libraries:flowbinding",
     ":libraries:kotlinutil",
     ":libraries:retrofitconverters",
-    ":libraries:third_party:bypass",
+    ":libraries:smmry",
     ":libraries:tooling:spi-visualizer",
     ":libraries:util",
     ":service-api",

@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2018 Zac Sweers
+ * Copyright (C) 2019. Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.sweers.catchup.ui.debug
 
 import android.animation.ValueAnimator
@@ -27,46 +26,55 @@ import android.view.ContextThemeWrapper
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.FrameLayout
-import android.widget.LinearLayout
 import android.widget.Spinner
-import android.widget.SpinnerAdapter
 import android.widget.Switch
 import android.widget.TextView
 import com.jakewharton.processphoenix.ProcessPhoenix
-import com.jakewharton.rxbinding2.view.RxView
-import com.jakewharton.rxbinding2.widget.RxAdapterView
-import com.readystatesoftware.chuck.internal.ui.MainActivity
-import com.squareup.leakcanary.internal.DisplayLeakActivity
 import dagger.Lazy
-import io.reactivex.Maybe
-import io.reactivex.android.schedulers.AndroidSchedulers
-import io.reactivex.schedulers.Schedulers
 import io.sweers.catchup.BuildConfig
-import io.sweers.catchup.P
 import io.sweers.catchup.R
+import io.sweers.catchup.data.DebugPreferences
 import io.sweers.catchup.data.LumberYard
+import io.sweers.catchup.flowbinding.viewScope
+import io.sweers.catchup.ui.activity.LauncherActivity
 import io.sweers.catchup.ui.logs.LogsDialog
 import io.sweers.catchup.util.d
 import io.sweers.catchup.util.isN
 import io.sweers.catchup.util.kotlin.applyOn
+import io.sweers.catchup.util.kotlin.getValue
+import io.sweers.catchup.util.kotlin.setValue
 import io.sweers.catchup.util.truncateAt
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotterknife.bindView
 import kotterknife.onSubviewClick
-import okhttp3.Cache
+import leakcanary.LeakCanary
 import okhttp3.OkHttpClient
 import org.threeten.bp.Instant
 import org.threeten.bp.ZoneId
 import org.threeten.bp.format.DateTimeFormatter
 import retrofit2.mock.NetworkBehavior
+import ru.ldralighieri.corbind.view.clicks
+import ru.ldralighieri.corbind.widget.itemSelections
 import java.util.Locale
 import java.util.concurrent.TimeUnit.MILLISECONDS
 
+// TODO check out jw's assisted injection. Dagger-android doesn't make view injection easy
+//  because it doesn't support it, and via subcomponents we can't get ahold of an instance of the
+//  internal ActivityComponent
 @SuppressLint("SetTextI18n")
-class DebugView @JvmOverloads constructor(context: Context,
-    attrs: AttributeSet? = null) : FrameLayout(context, attrs) {
+class DebugView(
+  context: Context,
+  attrs: AttributeSet? = null,
+  private val client: Lazy<OkHttpClient>,
+  private val lumberYard: LumberYard,
+  private val debugPreferences: DebugPreferences
+) : FrameLayout(context, attrs) {
   internal val icon by bindView<View>(R.id.debug_icon)
-  private val contextualTitleView by bindView<View>(R.id.debug_contextual_title)
-  private val contextualListView by bindView<LinearLayout>(R.id.debug_contextual_list)
   private val networkDelayView by bindView<Spinner>(R.id.debug_network_delay)
   private val networkVarianceView by bindView<Spinner>(R.id.debug_network_variance)
   private val networkErrorView by bindView<Spinner>(R.id.debug_network_error)
@@ -93,37 +101,19 @@ class DebugView @JvmOverloads constructor(context: Context,
   private val okHttpCacheNetworkCountView by bindView<TextView>(
       R.id.debug_okhttp_cache_network_count)
   private val okHttpCacheHitCountView by bindView<TextView>(R.id.debug_okhttp_cache_hit_count)
-  private lateinit var client: Lazy<OkHttpClient>
-  private lateinit var lumberYard: LumberYard
-  private var isMockMode = P.DebugMockModeEnabled.get()
-  private var networkDelay = P.DebugNetworkDelay.rx()
-  private var networkFailurePercent = P.DebugNetworkFailurePercent.rx()
-  private var networkVariancePercent = P.DebugNetworkVariancePercent.rx()
+  private var isMockMode by debugPreferences::mockModeEnabled
   private var behavior: NetworkBehavior = NetworkBehavior.create().apply {
-    setDelay(networkDelay.get().toLong(), MILLISECONDS)
-    setFailurePercent(networkFailurePercent.get())
-    setVariancePercent(networkVariancePercent.get())
+    setDelay(debugPreferences.networkDelay, MILLISECONDS)
+    setFailurePercent(debugPreferences.networkFailurePercent)
+    setVariancePercent(debugPreferences.networkVariancePercent)
   }
-  private val animationSpeed = P.DebugAnimationSpeed.rx()
-  private val pixelGridEnabled = P.DebugPixelGridEnabled.rx()
-  private val pixelRatioEnabled = P.DebugPixelRatioEnabled.rx()
-  private val scalpelEnabled = P.DebugScalpelEnabled.rx()
-  private val scalpelWireframeEnabled = P.DebugScalpelWireframeDrawer.rx()
+  private var animationSpeed by debugPreferences::animationSpeed
+  private var pixelGridEnabled by debugPreferences::pixelGridEnabled
+  private var pixelRatioEnabled by debugPreferences::pixelRatioEnabled
+  private var scalpelEnabled by debugPreferences::scalpelEnabled
+  private var scalpelWireframeEnabled by debugPreferences::scalpelWireframeDrawer
 
-  constructor(context: Context,
-      client: Lazy<OkHttpClient>,
-      lumberYard: LumberYard) : this(context) {
-    // TODO check out jw's assisted injection. Dagger-android doesn't make view injection easy
-    // because it doesn't support it, and via subcomponents we can't get ahold of an instance of the
-    // internal ActivityComponent
-    this.client = client
-    this.lumberYard = lumberYard
-    realInit()
-  }
-
-  // A little scary but it's not safe to just use init {} here because it sometimes gets called in
-  // the super constructor call before our actual constructor finishes.
-  private fun realInit() {
+  init {
     // Inflate all of the controls and inject them.
     LayoutInflater.from(context)
         .inflate(R.layout.debug_view_content, this)
@@ -132,22 +122,22 @@ class DebugView @JvmOverloads constructor(context: Context,
       LogsDialog(ContextThemeWrapper(context, R.style.CatchUp), lumberYard).show()
     }
     onSubviewClick<View>(R.id.debug_leaks_show) {
-      startDebugActivity(Intent(context, DisplayLeakActivity::class.java))
+      startDebugActivity(LeakCanary.newLeakDisplayActivityIntent())
     }
-    onSubviewClick<View>(R.id.debug_network_logs) {
-      startDebugActivity(Intent(context, MainActivity::class.java))
-    }
+//    onSubviewClick<View>(R.id.debug_network_logs) {
+//      startDebugActivity(Intent(context, MainActivity::class.java))
+//    }
 
     setupNetworkSection()
     setupMockBehaviorSection()
     setupUserInterfaceSection()
     setupBuildSection()
     setupDeviceSection()
-    refreshOkHttpCacheStats(setup = true)
+    viewScope().launch { refreshOkHttpCacheStats(setup = true) }
   }
 
   fun onDrawerOpened() {
-    refreshOkHttpCacheStats(false)
+    viewScope().launch { refreshOkHttpCacheStats(setup = false) }
   }
 
   private fun setupNetworkSection() {
@@ -157,42 +147,48 @@ class DebugView @JvmOverloads constructor(context: Context,
     networkDelayView.setSelection(NetworkDelayAdapter.getPositionForValue(behavior.delay(
         MILLISECONDS)))
 
-    RxAdapterView.itemSelections<SpinnerAdapter>(networkDelayView)
-        .map { delayAdapter.getItem(it) }
-        .filter { item -> item != behavior.delay(MILLISECONDS) }
-        .subscribe { selected ->
-          d { "Setting network delay to ${selected}ms" }
-          behavior.setDelay(selected, MILLISECONDS)
-          networkDelay.set(selected.toInt())
-        }
+    viewScope().launch {
+      networkDelayView.itemSelections()
+          .map { delayAdapter.getItem(it) }
+          .filter { item -> item != behavior.delay(MILLISECONDS) }
+          .collect { selected ->
+            d { "Setting network delay to ${selected}ms" }
+            behavior.setDelay(selected, MILLISECONDS)
+            debugPreferences.networkDelay = selected
+          }
+    }
 
     val varianceAdapter = NetworkVarianceAdapter(context)
     networkVarianceView.adapter = varianceAdapter
     networkVarianceView.setSelection(
         NetworkVarianceAdapter.getPositionForValue(behavior.variancePercent()))
 
-    RxAdapterView.itemSelections<SpinnerAdapter>(networkVarianceView)
-        .map { varianceAdapter.getItem(it) }
-        .filter { item -> item != behavior.variancePercent() }
-        .subscribe { selected ->
-          d { "Setting network variance to $selected%" }
-          behavior.setVariancePercent(selected)
-          networkVariancePercent.set(selected)
-        }
+    viewScope().launch {
+      networkVarianceView.itemSelections()
+          .map { varianceAdapter.getItem(it) }
+          .filter { item -> item != behavior.variancePercent() }
+          .collect { selected ->
+            d { "Setting network variance to $selected%" }
+            behavior.setVariancePercent(selected)
+            debugPreferences.networkVariancePercent = selected
+          }
+    }
 
     val errorAdapter = NetworkErrorAdapter(context)
     networkErrorView.adapter = errorAdapter
     networkErrorView.setSelection(
         NetworkErrorAdapter.getPositionForValue(behavior.failurePercent()))
 
-    RxAdapterView.itemSelections<SpinnerAdapter>(networkErrorView)
-        .map { errorAdapter.getItem(it) }
-        .filter { item -> item != behavior.failurePercent() }
-        .subscribe { selected ->
-          d { "Setting network error to $selected%" }
-          behavior.setFailurePercent(selected)
-          networkFailurePercent.set(selected)
-        }
+    viewScope().launch {
+      networkErrorView.itemSelections()
+          .map { errorAdapter.getItem(it) }
+          .filter { item -> item != behavior.failurePercent() }
+          .collect { selected ->
+            d { "Setting network error to $selected%" }
+            behavior.setFailurePercent(selected)
+            debugPreferences.networkFailurePercent = selected
+          }
+    }
 
     if (!isMockMode) {
       // Disable network controls if we are not in mock mode.
@@ -203,62 +199,67 @@ class DebugView @JvmOverloads constructor(context: Context,
   }
 
   private fun setupMockBehaviorSection() {
-    enableMockModeView.isChecked = P.DebugMockModeEnabled.get()
-    RxView.clicks(enableMockModeView)
-        .subscribe {
-          P.DebugMockModeEnabled.put(enableMockModeView.isChecked).commit()
-          ProcessPhoenix.triggerRebirth(context)
-        }
+    enableMockModeView.isChecked = debugPreferences.mockModeEnabled
+    viewScope().launch {
+      enableMockModeView.clicks()
+          .collect {
+            debugPreferences.mockModeEnabled = enableMockModeView.isChecked
+            ProcessPhoenix.triggerRebirth(context, Intent(context, LauncherActivity::class.java))
+          }
+    }
   }
 
   private fun setupUserInterfaceSection() {
     val speedAdapter = AnimationSpeedAdapter(context)
     uiAnimationSpeedView.adapter = speedAdapter
-    val animationSpeedValue = animationSpeed.get()
+    val animationSpeedValue = animationSpeed
     uiAnimationSpeedView.setSelection(
         AnimationSpeedAdapter.getPositionForValue(animationSpeedValue))
 
-    RxAdapterView.itemSelections<SpinnerAdapter>(uiAnimationSpeedView)
-        .map { speedAdapter.getItem(it) }
-        .filter { item -> item != animationSpeed.get() }
-        .subscribe { selected ->
-          d { "Setting animation speed to ${selected}x" }
-          animationSpeed.set(selected)
-          applyAnimationSpeed(selected)
-        }
+    viewScope().launch {
+      uiAnimationSpeedView.itemSelections()
+          .map { speedAdapter.getItem(it) }
+          .filter { item -> item != animationSpeed }
+          .collect { selected ->
+            d { "Setting animation speed to ${selected}x" }
+            animationSpeed = selected
+            applyAnimationSpeed(selected)
+          }
+    }
     // Ensure the animation speed value is always applied across app restarts.
     post { applyAnimationSpeed(animationSpeedValue) }
 
-    val gridEnabled = pixelGridEnabled.get()
+    val gridEnabled = pixelGridEnabled
     uiPixelGridView.isChecked = gridEnabled
     uiPixelRatioView.isEnabled = gridEnabled
     uiPixelGridView.setOnCheckedChangeListener { _, isChecked ->
       d { "Setting pixel grid overlay enabled to $isChecked" }
-      pixelGridEnabled.set(isChecked)
+      pixelGridEnabled = isChecked
       uiPixelRatioView.isEnabled = isChecked
     }
 
-    uiPixelRatioView.isChecked = pixelRatioEnabled.get()
+    uiPixelRatioView.isChecked = pixelRatioEnabled
     uiPixelRatioView.setOnCheckedChangeListener { _, isChecked ->
       d { "Setting pixel scale overlay enabled to $isChecked" }
-      pixelRatioEnabled.set(isChecked)
+      pixelRatioEnabled = isChecked
     }
 
-    uiScalpelView.isChecked = scalpelEnabled.get()
-    uiScalpelWireframeView.isEnabled = scalpelEnabled.get()
+    uiScalpelView.isChecked = scalpelEnabled
+    uiScalpelWireframeView.isEnabled = scalpelEnabled
     uiScalpelView.setOnCheckedChangeListener { _, isChecked ->
       d { "Setting scalpel interaction enabled to $isChecked" }
-      scalpelEnabled.set(isChecked)
+      scalpelEnabled = isChecked
       uiScalpelWireframeView.isEnabled = isChecked
     }
 
-    uiScalpelWireframeView.isChecked = scalpelWireframeEnabled.get()
+    uiScalpelWireframeView.isChecked = scalpelWireframeEnabled
     uiScalpelWireframeView.setOnCheckedChangeListener { _, isChecked ->
       d { "Setting scalpel wireframe enabled to $isChecked" }
-      scalpelWireframeEnabled.set(isChecked)
+      scalpelWireframeEnabled = isChecked
     }
   }
 
+  @SuppressLint("InlinedApi") // False positive
   private fun startDebugActivity(intent: Intent) {
     if (isN()) {
       // In case they're for some reason already in multiwindow
@@ -290,29 +291,20 @@ class DebugView @JvmOverloads constructor(context: Context,
     deviceApiView.text = Build.VERSION.SDK_INT.toString()
   }
 
-  private fun refreshOkHttpCacheStats(setup: Boolean = false) {
-    Maybe
-        .create<Cache> { e ->
-          // Shares the cache with apiClient, so no need to check both.
-          client.get().cache()?.let {
-            e.onSuccess(it)
-          } ?: e.onComplete()
-        }
-        .subscribeOn(Schedulers.io())
-        .observeOn(AndroidSchedulers.mainThread())
-        .subscribe { cache ->
-          if (setup) {
-            okHttpCacheMaxSizeView.text = getSizeString(cache.maxSize())
-          }
-          val writeTotal = cache.writeSuccessCount() + cache.writeAbortCount()
-          val percentage = (1f * cache.writeAbortCount() / writeTotal * 100).toInt()
-          okHttpCacheWriteErrorView.text = "${cache.writeAbortCount()} / $writeTotal ($percentage%)"
-          okHttpCacheRequestCountView.text = cache.requestCount().toString()
-          okHttpCacheNetworkCountView.text = cache.networkCount().toString()
-          okHttpCacheHitCountView.text = cache.hitCount().toString()
-        }
+  private suspend fun refreshOkHttpCacheStats(setup: Boolean = false) {
+    val cache = withContext(Dispatchers.IO) { client.get().cache } ?: return
+    if (setup) {
+      okHttpCacheMaxSizeView.text = getSizeString(cache.maxSize())
+    }
+    val writeTotal = cache.writeSuccessCount() + cache.writeAbortCount()
+    val percentage = (1f * cache.writeAbortCount() / writeTotal * 100).toInt()
+    okHttpCacheWriteErrorView.text = "${cache.writeAbortCount()} / $writeTotal ($percentage%)"
+    okHttpCacheRequestCountView.text = cache.requestCount().toString()
+    okHttpCacheNetworkCountView.text = cache.networkCount().toString()
+    okHttpCacheHitCountView.text = cache.hitCount().toString()
   }
 
+  @SuppressLint("DiscouragedPrivateApi")
   private fun applyAnimationSpeed(multiplier: Int) {
     try {
       val method = ValueAnimator::class.java.getDeclaredMethod("setDurationScale",

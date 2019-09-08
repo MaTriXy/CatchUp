@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2018 Zac Sweers
+ * Copyright (C) 2019. Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,10 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.sweers.catchup.ui.bugreport
 
-import android.app.Activity
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -26,40 +24,45 @@ import android.os.Build.VERSION
 import android.os.Build.VERSION_CODES
 import android.util.DisplayMetrics
 import android.widget.Toast
+import androidx.activity.ComponentActivity
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.getSystemService
 import androidx.core.net.toUri
+import androidx.lifecycle.lifecycleScope
 import com.mattprecious.telescope.Lens
 import com.uber.autodispose.autoDisposable
 import io.reactivex.Single
-import io.reactivex.SingleObserver
 import io.reactivex.android.schedulers.AndroidSchedulers
-import io.reactivex.disposables.Disposable
 import io.reactivex.schedulers.Schedulers
 import io.sweers.catchup.BuildConfig
 import io.sweers.catchup.R
+import io.sweers.catchup.base.ui.BaseActivity
 import io.sweers.catchup.data.LumberYard
 import io.sweers.catchup.injection.scopes.PerActivity
-import io.sweers.catchup.ui.base.BaseActivity
 import io.sweers.catchup.ui.bugreport.BugReportDialog.ReportListener
 import io.sweers.catchup.ui.bugreport.BugReportView.Report
-import okhttp3.MediaType
+import io.sweers.catchup.util.buildMarkdown
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
-import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.asRequestBody
 import java.io.File
 import javax.inject.Inject
-
 
 /**
  * Pops a dialog asking for more information about the bug report and then creates an upload with a
  * markdown-formatted body.
  */
 @PerActivity
-internal class BugReportLens @Inject constructor(private val activity: Activity,
-    private val lumberYard: LumberYard,
-    private val imgurUploadApi: ImgurUploadApi,
-    private val gitHubIssueApi: GitHubIssueApi) : Lens(), ReportListener {
+internal class BugReportLens @Inject constructor(
+  private val activity: ComponentActivity,
+  private val lumberYard: LumberYard,
+  private val imgurUploadApi: ImgurUploadApi,
+  private val gitHubIssueApi: GitHubIssueApi
+) : Lens(), ReportListener {
 
   private var screenshot: File? = null
 
@@ -73,23 +76,15 @@ internal class BugReportLens @Inject constructor(private val activity: Activity,
 
   override fun onBugReportSubmit(report: Report) {
     if (report.includeLogs) {
-      lumberYard.save()
-          .subscribeOn(Schedulers.io())
-          .observeOn(AndroidSchedulers.mainThread())
-          .subscribe(object : SingleObserver<File> {
-            override fun onSubscribe(d: Disposable) {
-
-            }
-
-            override fun onSuccess(logs: File) {
-              submitReport(report, logs)
-            }
-
-            override fun onError(e: Throwable) {
-              Toast.makeText(activity, "Couldn't attach the logs.", Toast.LENGTH_SHORT).show()
-              submitReport(report, null)
-            }
-          })
+      activity.lifecycleScope.launch {
+        try {
+          val logs = withContext(Dispatchers.IO) { lumberYard.save() }
+          submitReport(report, logs)
+        } catch (e: Exception) {
+          Toast.makeText(activity, "Couldn't attach the logs.", Toast.LENGTH_SHORT).show()
+          submitReport(report, null)
+        }
+      }
     } else {
       submitReport(report, null)
     }
@@ -99,40 +94,41 @@ internal class BugReportLens @Inject constructor(private val activity: Activity,
     val dm = activity.resources.displayMetrics
     val densityBucket = getDensityString(dm)
 
+    val markdown = buildMarkdown {
+      text("Reported by @${report.username}")
+      newline(2)
+      if (!report.description.isBlank()) {
+        h4("Description")
+        newline()
+        codeBlock(report.description)
+        newline(2)
+      }
+      h4("App")
+      codeBlock(buildString {
+        append("Version: ").append(BuildConfig.VERSION_NAME).append('\n')
+        append("Version code: ").append(BuildConfig.VERSION_CODE).append('\n')
+      })
+      newline()
+      h4("Device details")
+      codeBlock(buildString {
+        append("Make: ").append(Build.MANUFACTURER).append('\n')
+        append("Model: ").append(Build.MODEL).append('\n')
+        append("Resolution: ")
+            .append(dm.heightPixels)
+            .append("x")
+            .append(dm.widthPixels)
+            .append('\n')
+        append("Density: ")
+            .append(dm.densityDpi)
+            .append("dpi (")
+            .append(densityBucket)
+            .append(")\n")
+        append("Release: ").append(VERSION.RELEASE).append('\n')
+        append("API: ").append(VERSION.SDK_INT).append('\n')
+      })
+    }
     val body = StringBuilder()
-    body.append("Reported by @${report.username}\n\n")
-    if (!report.description.isBlank()) {
-      body.append("#### Description\n")
-          .append("```\n")
-          .append(report.description)
-          .append("\n```\n\n")
-    }
-
-    body.run {
-      append("#### App\n")
-      append("```\n")
-      append("Version: ").append(BuildConfig.VERSION_NAME).append('\n')
-      append("Version code: ").append(BuildConfig.VERSION_CODE).append('\n')
-      append("```\n\n")
-
-      append("#### Device details\n")
-      append("```\n")
-      append("Make: ").append(Build.MANUFACTURER).append('\n')
-      append("Model: ").append(Build.MODEL).append('\n')
-      append("Resolution: ")
-          .append(dm.heightPixels)
-          .append("x")
-          .append(dm.widthPixels)
-          .append('\n')
-      append("Density: ")
-          .append(dm.densityDpi)
-          .append("dpi (")
-          .append(densityBucket)
-          .append(")\n")
-      append("Release: ").append(Build.VERSION.RELEASE).append('\n')
-      append("API: ").append(Build.VERSION.SDK_INT).append('\n')
-      append("```")
-    }
+    body.append(markdown)
 
     uploadIssue(report, body, logs)
   }
@@ -174,22 +170,24 @@ internal class BugReportLens @Inject constructor(private val activity: Activity,
           .postImage(MultipartBody.Part.createFormData(
               "image",
               finalScreenshot.name,
-              RequestBody.create(MediaType.parse("image/*"), finalScreenshot)
+              finalScreenshot.asRequestBody("image/*".toMediaTypeOrNull())
           ))
-          .map { "\n\n![Screenshot]($it)" }
+          .map { "\n\n!${buildMarkdown { link(it, "Screenshot") }}" }
     } else Single.just("\n\nNo screenshot provided")
 
     screenshotStringStream
         .map { screenshotText ->
           body.append(screenshotText)
-          body.append("\n\n#### Logs\n")
-          if (report.includeLogs && logs != null) {
-            body.append("```\n")
-                .append(logs.readText())
-                .append("\n```")
-          } else {
-            body.append("No logs provided")
+          val screenshotMarkdown = buildMarkdown {
+            newline(2)
+            h4("Logs")
+            if (report.includeLogs && logs != null) {
+              codeBlock(logs.readText())
+            } else {
+              text("No logs provided")
+            }
           }
+          body.append(screenshotMarkdown)
           body.toString()
         }
         .flatMap { bodyText ->

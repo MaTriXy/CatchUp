@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2018 Zac Sweers
+ * Copyright (C) 2019. Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.sweers.catchup.ui
 
 import android.app.Activity
@@ -46,25 +45,33 @@ import io.reactivex.Completable
 import io.reactivex.Maybe
 import io.reactivex.android.MainThreadDisposable
 import io.reactivex.android.schedulers.AndroidSchedulers
-import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.schedulers.Schedulers
-import io.sweers.catchup.P
 import io.sweers.catchup.R
+import io.sweers.catchup.base.ui.ActivityEvent
+import io.sweers.catchup.base.ui.BaseActivity
+import io.sweers.catchup.base.ui.ViewContainer
+import io.sweers.catchup.data.DebugPreferences
 import io.sweers.catchup.data.LumberYard
 import io.sweers.catchup.edu.Syllabus
 import io.sweers.catchup.edu.TargetRequest
 import io.sweers.catchup.edu.id
+import io.sweers.catchup.flowFor
 import io.sweers.catchup.injection.scopes.PerActivity
-import io.sweers.catchup.ui.base.ActivityEvent
-import io.sweers.catchup.ui.base.BaseActivity
 import io.sweers.catchup.ui.bugreport.BugReportLens
 import io.sweers.catchup.ui.debug.DebugView
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 import kotterknife.ViewDelegateBindable
 import kotterknife.bindView
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeUnit.SECONDS
 import javax.inject.Inject
+import kotlin.coroutines.CoroutineContext
 
 /**
  * An [ViewContainer] for debug builds which wraps a sliding drawer on the right that holds
@@ -72,16 +79,17 @@ import javax.inject.Inject
  */
 @PerActivity
 internal class DebugViewContainer @Inject constructor(
-    private val bugReportLens: BugReportLens,
-    private val lumberYard: LumberYard,
-    private val lazyOkHttpClient: Lazy<OkHttpClient>,
-    private val syllabus: Syllabus,
-    private val fontHelper: FontHelper) : ViewContainer {
-  private val seenDebugDrawer = P.DebugSeenDebugDrawer.rx()
-  private val pixelGridEnabled = P.DebugPixelGridEnabled.rx()
-  private val pixelRatioEnabled = P.DebugPixelRatioEnabled.rx()
-  private val scalpelEnabled = P.DebugScalpelEnabled.rx()
-  private val scalpelWireframeEnabled = P.DebugScalpelWireframeDrawer.rx()
+  private val bugReportLens: BugReportLens,
+  private val lumberYard: LumberYard,
+  private val lazyOkHttpClient: Lazy<OkHttpClient>,
+  private val syllabus: Syllabus,
+  private val fontHelper: FontHelper,
+  private val debugPreferences: DebugPreferences
+) : ViewContainer {
+  private val pixelGridEnabled = debugPreferences.flowFor { ::pixelGridEnabled }
+  private val pixelRatioEnabled = debugPreferences.flowFor { ::pixelRatioEnabled }
+  private val scalpelEnabled = debugPreferences.flowFor { ::scalpelEnabled }
+  private val scalpelWireframeEnabled = debugPreferences.flowFor { ::scalpelWireframeDrawer }
 
   override fun forActivity(activity: BaseActivity): ViewGroup {
     val contentView = LayoutInflater.from(activity)
@@ -92,7 +100,7 @@ internal class DebugViewContainer @Inject constructor(
     val viewHolder = DebugViewViewHolder(contentView)
 
     val drawerContext = ContextThemeWrapper(activity, R.style.DebugDrawer)
-    val debugView = DebugView(drawerContext, lazyOkHttpClient, lumberYard)
+    val debugView = DebugView(drawerContext, null, lazyOkHttpClient, lumberYard, debugPreferences)
     viewHolder.debugDrawer.addView(debugView)
 
     // Set up the contextual actions to watch views coming in and out of the content area.
@@ -121,7 +129,7 @@ internal class DebugViewContainer @Inject constructor(
         }
 
     // If you have not seen the debug drawer before, show it with a message
-    syllabus.showIfNeverSeen(seenDebugDrawer.key(), TargetRequest(
+    syllabus.showIfNeverSeen(debugPreferences::seenDebugDrawer.name, TargetRequest(
         target = {
           DrawerTapTarget(
               delegateTarget = TapTarget.forView(debugView.icon,
@@ -147,9 +155,11 @@ internal class DebugViewContainer @Inject constructor(
         }
     ))
 
-    val disposables = CompositeDisposable()
-    setupMadge(viewHolder, disposables)
-    setupScalpel(viewHolder, disposables)
+    val scope = object : CoroutineScope {
+      override val coroutineContext: CoroutineContext = SupervisorJob() + Dispatchers.Main.immediate
+    }
+    setupMadge(viewHolder, scope)
+    setupScalpel(viewHolder, scope)
 
     riseAndShine(activity)
     activity.lifecycle()
@@ -157,27 +167,31 @@ internal class DebugViewContainer @Inject constructor(
         .firstElement()
         // Why is the below all so awkward?
         .doOnDispose {
-          disposables.clear()
+          scope.cancel()
         }
         .autoDisposable(activity)
         .subscribe {
-          disposables.clear()
+          scope.cancel()
         }
     return viewHolder.content
   }
 
-  private fun setupMadge(viewHolder: DebugViewViewHolder, subscriptions: CompositeDisposable) {
-    subscriptions.add(pixelGridEnabled.asObservable()
-        .subscribe { enabled -> viewHolder.madgeFrameLayout.isOverlayEnabled = enabled })
-    subscriptions.add(pixelRatioEnabled.asObservable()
-        .subscribe { enabled -> viewHolder.madgeFrameLayout.isOverlayRatioEnabled = enabled })
+  private fun setupMadge(viewHolder: DebugViewViewHolder, scope: CoroutineScope) = scope.launch {
+    pixelGridEnabled.collect { enabled ->
+      viewHolder.madgeFrameLayout.isOverlayEnabled = enabled
+    }
+    pixelRatioEnabled.collect { enabled ->
+      viewHolder.madgeFrameLayout.isOverlayRatioEnabled = enabled
+    }
   }
 
-  private fun setupScalpel(viewHolder: DebugViewViewHolder, subscriptions: CompositeDisposable) {
-    subscriptions.add(scalpelEnabled.asObservable()
-        .subscribe { enabled -> viewHolder.content.isLayerInteractionEnabled = enabled })
-    subscriptions.add(scalpelWireframeEnabled.asObservable()
-        .subscribe { enabled -> viewHolder.content.setDrawViews(!enabled) })
+  private fun setupScalpel(viewHolder: DebugViewViewHolder, scope: CoroutineScope) = scope.launch {
+    scalpelEnabled.collect { enabled ->
+      viewHolder.content.isLayerInteractionEnabled = enabled
+    }
+    scalpelWireframeEnabled.collect { enabled ->
+      viewHolder.content.setDrawViews(!enabled)
+    }
   }
 
   companion object {
@@ -190,9 +204,12 @@ internal class DebugViewContainer @Inject constructor(
     @Suppress("DEPRECATION")
     fun riseAndShine(activity: Activity) {
       if (Build.VERSION.SDK_INT >= 27) {
-        activity.run {
-          setShowWhenLocked(true)
-          setTurnScreenOn(true)
+        // Don't run on Q+ because the gesture nav makes this a crappy experience
+        if (Build.VERSION.SDK_INT < 29) {
+          activity.run {
+            setShowWhenLocked(true)
+            setTurnScreenOn(true)
+          }
         }
       } else {
         activity.window
@@ -218,11 +235,11 @@ internal class DebugViewViewHolder(source: View) : ViewDelegateBindable(source) 
 }
 
 class DrawerTapTarget(
-    private val delegateTarget: TapTarget,
-    private val drawerLayout: DrawerLayout,
-    private val gravity: Int,
-    title: CharSequence,
-    description: CharSequence?
+  private val delegateTarget: TapTarget,
+  private val drawerLayout: DrawerLayout,
+  private val gravity: Int,
+  title: CharSequence,
+  description: CharSequence?
 ) : TapTarget(title, description) {
 
   override fun bounds(): Rect {

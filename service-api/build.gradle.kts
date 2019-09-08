@@ -28,7 +28,6 @@ apply {
 
 android {
   compileSdkVersion(deps.android.build.compileSdkVersion)
-  buildToolsVersion(deps.android.build.buildToolsVersion)
 
   defaultConfig {
     minSdkVersion(deps.android.build.minSdkVersion)
@@ -39,42 +38,42 @@ android {
     targetCompatibility = JavaVersion.VERSION_1_8
   }
   lintOptions {
-    setLintConfig(file("lint.xml"))
-    isAbortOnError = true
-    check("InlinedApi")
-    check("NewApi")
-    fatal("NewApi")
-    fatal("InlinedApi")
-    enable("UnusedResources")
-    isCheckReleaseBuilds = true
-    textReport = deps.build.ci
-    textOutput("stdout")
-    htmlReport = !deps.build.ci
-    xmlReport = !deps.build.ci
+    isCheckReleaseBuilds = false
+    isAbortOnError = false
+  }
+  libraryVariants.all {
+    generateBuildConfigProvider?.configure {
+      enabled = false
+    }
   }
 }
 
 tasks.withType<KotlinCompile> {
   kotlinOptions {
     freeCompilerArgs = build.standardFreeKotlinCompilerArgs
+    jvmTarget = "1.8"
   }
 }
 
 kapt {
   correctErrorTypes = true
-  useBuildCache = true
   mapDiagnosticLocations = true
 }
 
 dependencies {
   kapt(deps.android.androidx.room.apt)
 
+  implementation(deps.kotlin.coroutinesAndroid)
+  implementation(deps.kotlin.coroutinesRx)
+
   api(project(":service-registry:service-registry-annotations"))
+  api(project(":libraries:retrofitconverters"))
   api(deps.android.androidx.room.runtime)
   api(deps.android.androidx.annotations)
   api(deps.android.androidx.coreKtx)
-  api(deps.autoDispose.kotlin)
+  api(deps.android.androidx.fragment)
   api(deps.dagger.runtime)
+  api(deps.kotlin.coroutines)
   api(deps.misc.lazythreeten)
   api(deps.rx.java)
 

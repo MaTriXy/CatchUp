@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2018 Zac Sweers
+ * Copyright (C) 2019. Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 @file:Suppress("NOTHING_TO_INLINE")
 
 package io.sweers.catchup.util
@@ -24,6 +23,7 @@ import android.content.Context
 import android.content.res.Configuration
 import android.os.Build
 import android.view.View
+import androidx.core.view.isInvisible
 import androidx.core.view.isVisible
 import androidx.interpolator.view.animation.FastOutSlowInInterpolator
 import androidx.interpolator.view.animation.LinearOutSlowInInterpolator
@@ -67,6 +67,9 @@ fun View.clearLightNavBar() {
 }
 
 inline fun View.show(animate: Boolean = false) {
+  if (isVisible) {
+    return
+  }
   if (animate) {
     alpha = 0F
     visibility = View.VISIBLE
@@ -94,7 +97,10 @@ inline infix fun View.showIf(condition: Boolean) {
 }
 
 inline fun View.hide(animate: Boolean = false) {
-  if (animate) {
+  if (!isVisible) {
+    return
+  }
+  if (animate && !isInvisible) {
     animate()
         .setDuration(300)
         .setInterpolator(LinearOutSlowInInterpolator())

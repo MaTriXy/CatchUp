@@ -1,11 +1,11 @@
 /*
- * Copyright 2016 Google Inc.
+ * Copyright (C) 2019. Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.sweers.catchup.service.github
 
 import io.sweers.catchup.service.github.GitHubApi.Companion.ENDPOINT
@@ -31,14 +30,18 @@ internal object GitHubTrendingParser {
   private fun String.removeCommas() = replace(",", "")
 
   internal fun parse(body: ResponseBody): List<TrendingItem> {
-    return Jsoup.parse(body.string(), ENDPOINT)
-        .select(".repo-list li")
+    val fullBody = body.string()
+    return Jsoup.parse(fullBody, ENDPOINT)
+        .getElementsByClass("Box-row")
         .mapNotNull(::parseTrendingItem)
+        .ifEmpty {
+          error("List was empty! Usually this is a sign that parsing failed.")
+        }
   }
 
   private fun parseTrendingItem(element: Element): TrendingItem? {
     // /creativetimofficial/material-dashboard
-    val authorAndName = element.select("h3 > a")
+    val authorAndName = element.select("h1 > a")
         .attr("href")
         .toString()
         .removePrefix("/")
@@ -55,7 +58,16 @@ internal object GitHubTrendingParser {
         .firstOrNull()
         ?.attr("style")
         ?.removePrefix("background-color:")
-        ?.removeSuffix(";")
+        ?.trimStart() // Thanks for the leading space, GitHub
+        ?.let {
+          val colorSubstring = it.removePrefix("#")
+          if (colorSubstring.length == 3) {
+            // Three digit hex, convert to 6 digits for Color.parseColor()
+            "#${colorSubstring.replace(".".toRegex(), "$0$0")}"
+          } else {
+            it
+          }
+        }
 
     // "3,441" stars, forks
     val counts = element.select(".muted-link.d-inline-block.mr-3")
@@ -92,4 +104,3 @@ internal object GitHubTrendingParser {
     )
   }
 }
-

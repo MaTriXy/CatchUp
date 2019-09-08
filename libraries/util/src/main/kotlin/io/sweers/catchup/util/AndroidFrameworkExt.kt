@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2018 Zac Sweers
+ * Copyright (C) 2019. Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,19 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 @file:Suppress("NOTHING_TO_INLINE")
 
 package io.sweers.catchup.util
 
-import android.annotation.TargetApi
-import android.content.BroadcastReceiver
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.content.res.Configuration
 import android.content.res.Resources
-import android.os.Build.VERSION_CODES
 import android.util.TypedValue
 import android.widget.Toast
 import android.widget.Toast.LENGTH_LONG
@@ -33,10 +29,9 @@ import androidx.annotation.AttrRes
 import androidx.annotation.ColorInt
 import androidx.annotation.UiThread
 import androidx.core.content.ContextCompat
-import androidx.core.content.getSystemService
-import io.reactivex.Observable
 import java.io.File
 import java.io.IOException
+import java.util.Locale
 
 /*
  * Android framework extension functions for things like Context, Activity, Resources, etc
@@ -47,7 +42,7 @@ fun Context.clearCache() = cleanDir(applicationContext.cacheDir)
 private fun cleanDir(dir: File): Long {
   var bytesDeleted: Long = 0
   dir.listFiles()
-      .forEach {
+      ?.forEach {
         val length = it.length()
         try {
           if (it.delete()) {
@@ -74,8 +69,10 @@ fun Context.maybeStartActivity(intent: Intent): Boolean = maybeStartActivity(int
  */
 fun Context.maybeStartChooser(intent: Intent): Boolean = maybeStartActivity(intent, true)
 
-private fun Context.maybeStartActivity(inputIntent: Intent,
-    chooser: Boolean): Boolean {
+private fun Context.maybeStartActivity(
+  inputIntent: Intent,
+  chooser: Boolean
+): Boolean {
   var intent = inputIntent
   return if (hasHandler(intent)) {
     if (chooser) {
@@ -94,7 +91,7 @@ private fun Context.maybeStartActivity(inputIntent: Intent,
  * Queries on-device packages for a handler for the supplied [Intent].
  */
 private fun Context.hasHandler(intent: Intent) =
-    !packageManager.queryIntentActivities(intent, 0).isEmpty()
+    packageManager.queryIntentActivities(intent, 0).isNotEmpty()
 
 private val typedValue = TypedValue()
 
@@ -139,49 +136,11 @@ inline fun Context.dp2px(dipValue: Float) = resources.dp2px(dipValue)
 inline fun Resources.dp2px(dipValue: Float) =
     TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dipValue, displayMetrics)
 
-@TargetApi(VERSION_CODES.M)
-inline fun <reified T> Context.getSystemService(): T {
-  if (isM()) {
-    return getSystemService<T>()!!
-  } else {
-    return when (T::class) {
-      android.view.WindowManager::class -> Context.WINDOW_SERVICE
-      android.view.LayoutInflater::class -> Context.LAYOUT_INFLATER_SERVICE
-      android.app.ActivityManager::class -> Context.ACTIVITY_SERVICE
-      android.os.PowerManager::class -> Context.POWER_SERVICE
-      android.app.AlarmManager::class -> Context.ALARM_SERVICE
-      android.app.NotificationManager::class -> Context.NOTIFICATION_SERVICE
-      android.app.KeyguardManager::class -> Context.KEYGUARD_SERVICE
-      android.location.LocationManager::class -> Context.LOCATION_SERVICE
-      android.app.SearchManager::class -> Context.SEARCH_SERVICE
-      android.os.Vibrator::class -> Context.VIBRATOR_SERVICE
-      android.net.ConnectivityManager::class -> Context.CONNECTIVITY_SERVICE
-      android.net.wifi.WifiManager::class -> Context.WINDOW_SERVICE
-      android.media.AudioManager::class -> Context.AUDIO_SERVICE
-      android.media.MediaRouter::class -> Context.MEDIA_ROUTER_SERVICE
-      android.telephony.TelephonyManager::class -> Context.TELEPHONY_SERVICE
-      android.telephony.SubscriptionManager::class -> Context.TELEPHONY_SUBSCRIPTION_SERVICE
-      android.view.inputmethod.InputMethodManager::class -> Context.INPUT_METHOD_SERVICE
-      android.app.UiModeManager::class -> Context.UI_MODE_SERVICE
-      android.app.DownloadManager::class -> Context.DOWNLOAD_SERVICE
-      android.os.BatteryManager::class -> Context.BATTERY_SERVICE
-      android.app.job.JobScheduler::class -> Context.JOB_SCHEDULER_SERVICE
-      android.app.usage.NetworkStatsManager::class -> Context.NETWORK_STATS_SERVICE
-      else -> throw UnsupportedOperationException("Unsupported service: ${T::class.java}")
-    }.let { getSystemService(it) as T }
+@Suppress("DEPRECATION")
+@get:SuppressLint("NewApi")
+val Resources.primaryLocale: Locale
+  get() {
+    return sdk(24) {
+      configuration.locales[0]
+    } ?: configuration.locale
   }
-}
-
-fun Context.registerReceiver(intentFilter: IntentFilter): Observable<Intent> {
-  return Observable.create { emitter ->
-    val receiver = object : BroadcastReceiver() {
-      override fun onReceive(context: Context, intent: Intent) {
-        emitter.onNext(intent)
-      }
-    }
-
-    registerReceiver(receiver, intentFilter)
-
-    emitter.setCancellable { unregisterReceiver(receiver) }
-  }
-}

@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2018 Zac Sweers
+ * Copyright (C) 2019. Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.sweers.catchup.ui.fragments.service
 
 import android.content.Context
@@ -22,7 +21,6 @@ import android.os.Bundle
 import android.os.Parcelable
 import android.view.LayoutInflater
 import android.view.View
-import android.view.View.OnLongClickListener
 import android.view.ViewGroup
 import android.view.animation.OvershootInterpolator
 import android.widget.ImageView
@@ -32,14 +30,15 @@ import androidx.annotation.ColorInt
 import androidx.core.content.ContextCompat
 import androidx.core.os.bundleOf
 import androidx.core.view.isVisible
-import androidx.fragment.app.transaction
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.commitNow
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.DefaultItemAnimator
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.DiffUtil.DiffResult
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import androidx.recyclerview.widget.RecyclerView.Adapter
 import androidx.recyclerview.widget.RecyclerView.RecycledViewPool
 import androidx.recyclerview.widget.RecyclerView.ViewHolder
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
@@ -52,13 +51,16 @@ import io.reactivex.android.schedulers.AndroidSchedulers
 import io.sweers.catchup.BuildConfig
 import io.sweers.catchup.GlideApp
 import io.sweers.catchup.R
-import io.sweers.catchup.analytics.trace
+import io.sweers.catchup.base.ui.InjectingBaseFragment
+import io.sweers.catchup.data.LinkManager
 import io.sweers.catchup.service.api.CatchUpItem
 import io.sweers.catchup.service.api.DataRequest
 import io.sweers.catchup.service.api.DisplayableItem
 import io.sweers.catchup.service.api.Service
 import io.sweers.catchup.service.api.ServiceException
+import io.sweers.catchup.service.api.UrlMeta
 import io.sweers.catchup.service.api.VisualService
+import io.sweers.catchup.ui.DetailDisplayer
 import io.sweers.catchup.ui.InfiniteScrollListener
 import io.sweers.catchup.ui.Scrollable
 import io.sweers.catchup.ui.activity.FinalServices
@@ -67,22 +69,25 @@ import io.sweers.catchup.ui.activity.VisualViewPool
 import io.sweers.catchup.ui.base.CatchUpItemViewHolder
 import io.sweers.catchup.ui.base.DataLoadingSubject
 import io.sweers.catchup.ui.base.DataLoadingSubject.DataLoadingCallbacks
-import io.sweers.catchup.ui.base.InjectingBaseFragment
-import io.sweers.catchup.ui.fragments.SmmryFragment
 import io.sweers.catchup.ui.fragments.service.LoadResult.DiffResultData
 import io.sweers.catchup.ui.fragments.service.LoadResult.NewData
+import io.sweers.catchup.ui.widget.BaseCatchupAdapter
 import io.sweers.catchup.util.e
 import io.sweers.catchup.util.hide
 import io.sweers.catchup.util.kotlin.applyOn
 import io.sweers.catchup.util.show
 import io.sweers.catchup.util.w
 import jp.wasabeef.recyclerview.animators.FadeInUpAnimator
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.channels.BroadcastChannel
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.SendChannel
+import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 import kotterknife.bindView
 import kotterknife.onClick
 import me.saket.inboxrecyclerview.InboxRecyclerView
-import me.saket.inboxrecyclerview.dimming.TintPainter
-import me.saket.inboxrecyclerview.page.ExpandablePageLayout
-import me.saket.inboxrecyclerview.page.InterceptResult
 import me.saket.inboxrecyclerview.page.SimplePageStateChangeCallbacks
 import retrofit2.HttpException
 import java.io.IOException
@@ -91,8 +96,8 @@ import javax.inject.Inject
 import javax.inject.Provider
 
 abstract class DisplayableItemAdapter<T : DisplayableItem, VH : ViewHolder>(
-    val columnCount: Int = 1)
-  : Adapter<VH>(), DataLoadingCallbacks {
+  val columnCount: Int = 1
+) : BaseCatchupAdapter<VH>(), DataLoadingCallbacks {
 
   companion object Blah {
     const val TYPE_ITEM = 0
@@ -100,6 +105,7 @@ abstract class DisplayableItemAdapter<T : DisplayableItem, VH : ViewHolder>(
   }
 
   protected val data = mutableListOf<T>()
+  private val clicksChannel = BroadcastChannel<UrlMeta>(Channel.BUFFERED)
 
   internal fun update(loadResult: LoadResult<T>) {
     when (loadResult) {
@@ -114,6 +120,11 @@ abstract class DisplayableItemAdapter<T : DisplayableItem, VH : ViewHolder>(
       }
     }
   }
+
+  @FlowPreview
+  fun clicksFlow() = clicksChannel.asFlow()
+
+  protected fun clicksChannel(): SendChannel<UrlMeta> = clicksChannel
 
   fun getItems(): List<DisplayableItem> = data
 
@@ -138,7 +149,6 @@ class ServiceFragment : InjectingBaseFragment(),
   private val errorTextView by bindView<TextView>(R.id.error_message)
   private val errorImage by bindView<ImageView>(R.id.error_image)
   private val recyclerView by bindView<InboxRecyclerView>(R.id.list)
-  private val smmryPage by bindView<ExpandablePageLayout>(R.id.smmrypage)
   private val progress by bindView<ProgressBar>(R.id.progress)
   private val swipeRefreshLayout by bindView<SwipeRefreshLayout>(R.id.refresh)
 
@@ -151,8 +161,11 @@ class ServiceFragment : InjectingBaseFragment(),
   private var moreDataAvailable = true
   private var dataLoading = false
   private var pendingRVState: Parcelable? = null
+  private var detailDisplayed: Boolean = false
   private val defaultItemAnimator = DefaultItemAnimator()
 
+  @Inject
+  internal lateinit var linkManager: LinkManager
   @field:TextViewPool
   @Inject
   lateinit var textViewPool: RecycledViewPool
@@ -163,13 +176,20 @@ class ServiceFragment : InjectingBaseFragment(),
   @Inject
   lateinit var services: Map<String, @JvmSuppressWildcards Provider<Service>>
   private lateinit var service: Service
+  @Inject
+  lateinit var fragmentCreators: Map<Class<out Fragment>, @JvmSuppressWildcards Provider<Fragment>>
+  @Inject
+  lateinit var detailDisplayer: DetailDisplayer
 
   override fun toString() = "ServiceFragment: ${arguments?.get(ARG_SERVICE_KEY)}"
 
   override fun isDataLoading(): Boolean = dataLoading
 
-  override fun inflateView(inflater: LayoutInflater, container: ViewGroup?,
-      savedInstanceState: Bundle?): View {
+  override fun inflateView(
+    inflater: LayoutInflater,
+    container: ViewGroup?,
+    savedInstanceState: Bundle?
+  ): View {
     return inflater.inflate(R.layout.fragment_service, container, false)
   }
 
@@ -181,8 +201,10 @@ class ServiceFragment : InjectingBaseFragment(),
     nextPage = service.meta().firstPageKey
   }
 
-  private fun createLayoutManager(context: Context,
-      adapter: DisplayableItemAdapter<*, *>): LinearLayoutManager {
+  private fun createLayoutManager(
+    context: Context,
+    adapter: DisplayableItemAdapter<*, *>
+  ): LinearLayoutManager {
     return if (service.meta().isVisual) {
       val spanConfig = (service.rootService() as VisualService).spanConfig()
       GridLayoutManager(context, spanConfig.spanCount).apply {
@@ -199,7 +221,7 @@ class ServiceFragment : InjectingBaseFragment(),
   }
 
   override fun onBackPressed(): Boolean {
-    return if (smmryPage.isExpandedOrExpanding) {
+    return if (detailDisplayer.isExpandedOrExpanding) {
       recyclerView.collapse()
       true
     } else {
@@ -208,10 +230,16 @@ class ServiceFragment : InjectingBaseFragment(),
   }
 
   private fun createAdapter(
-      context: Context): DisplayableItemAdapter<out DisplayableItem, ViewHolder> {
+    context: Context
+  ): DisplayableItemAdapter<out DisplayableItem, ViewHolder> {
     if (service.meta().isVisual) {
-      val adapter = ImageAdapter(context) { item, holder ->
-        service.bindItemView(item.realItem(), holder)
+      val adapter = ImageAdapter(context) { item, holder, clicksChannel ->
+        service.bindItemView(item.realItem(),
+            holder,
+            clicksChannel,
+            clicksChannel,
+            clicksChannel
+        )
       }
       val preloader = RecyclerViewPreloader(GlideApp.with(context),
           adapter,
@@ -220,36 +248,44 @@ class ServiceFragment : InjectingBaseFragment(),
       recyclerView.addOnScrollListener(preloader)
       return adapter
     } else {
-      return TextAdapter { item, holder ->
-        service.bindItemView(item, holder)
+      return TextAdapter { item, holder, clicksChannel ->
+        service.bindItemView(item, holder,
+            clicksChannel,
+            clicksChannel,
+            clicksChannel
+        )
         if (BuildConfig.DEBUG) {
-          item.summarizationInfo?.let { info ->
-            // We're not supporting this for now since it's not ready yet
-            holder.setLongClickHandler(OnLongClickListener {
-              recyclerView.expandItem(item.id)
-              val smmryFragment = SmmryFragment.newInstance(id = item.id.toString(),
-                  accentColor = ContextCompat.getColor(activity!!, service.meta().themeColor),
-                  inputTitle = item.title,
-                  info = info
-              )
-              smmryPage.pullToCollapseInterceptor = { _, _, upwardPull ->
-                val directionInt = if (upwardPull) +1 else -1
-                val canScrollFurther = smmryFragment.canScrollVertically(directionInt)
-                if (canScrollFurther) InterceptResult.INTERCEPTED else InterceptResult.IGNORED
-              }
-              smmryPage.addStateChangeCallbacks(object : SimplePageStateChangeCallbacks() {
-                override fun onPageCollapsed() {
-                  childFragmentManager.transaction(now = true, allowStateLoss = true) {
-                    remove(smmryFragment)
-                  }
-                  smmryPage.removeStateChangeCallbacks(this)
+          item.detailKey?.let { key ->
+            val args = bundleOf(
+                "detailKey" to key,
+                "detailTitle" to item.title
+            )
+            val targetProvider = fragmentCreators[service.meta().deeplinkFragment] ?: error("No deeplink for $key")
+            holder.setLongClickHandler {
+              detailDisplayer.showDetail { page, fragmentManager ->
+                detailDisplayed = true
+                val targetFragment = targetProvider.get().apply {
+                  arguments = args
                 }
-              })
-              childFragmentManager.transaction(now = true, allowStateLoss = true) {
-                add(smmryPage.id, smmryFragment)
+                detailDisplayer.bind(recyclerView, targetFragment)
+                page.addStateChangeCallbacks(object : SimplePageStateChangeCallbacks() {
+                  override fun onPageCollapsed() {
+                    detailDisplayed = false
+                    page.removeStateChangeCallbacks(this)
+                    detailDisplayer.unbind(recyclerView)
+                    fragmentManager.commitNow(allowStateLoss = true) {
+                      remove(targetFragment)
+                    }
+                  }
+                })
+                fragmentManager.commitNow(allowStateLoss = true) {
+                  add(page.id, targetFragment)
+                }
+                recyclerView.expandItem(item.id)
+                recyclerView::collapse
               }
               true
-            })
+            }
           }
         }
       }
@@ -267,6 +303,13 @@ class ServiceFragment : InjectingBaseFragment(),
         recyclerView.show()
         recyclerView.itemAnimator = defaultItemAnimator
       }
+      detailDisplayed = getBoolean("detailDisplayed")
+
+      if (detailDisplayed) {
+        // This is necessary to support state restoration in IRV, which expects the page to be
+        // bound after rotation before restoration.
+        detailDisplayer.bind(recyclerView, useExistingFragment = true)
+      }
     }
     onClick<View>(R.id.retry_button) {
       onRetry()
@@ -283,6 +326,11 @@ class ServiceFragment : InjectingBaseFragment(),
     }
     progress.indeterminateTintList = ColorStateList.valueOf(accentColor)
     adapter = createAdapter(view.context)
+    viewLifecycleOwner.lifecycleScope.launch {
+      adapter.clicksFlow().collect {
+        linkManager.openUrl(it)
+      }
+    }
     layoutManager = createLayoutManager(view.context, adapter)
     recyclerView.layoutManager = layoutManager
     recyclerView.addOnScrollListener(
@@ -295,11 +343,6 @@ class ServiceFragment : InjectingBaseFragment(),
       recyclerView.setRecycledViewPool(visualViewPool)
     } else {
       recyclerView.setRecycledViewPool(textViewPool)
-      recyclerView.setExpandablePage(smmryPage)
-      recyclerView.tintPainter = TintPainter.uncoveredArea(
-          color = ContextCompat.getColor(view.context, R.color.colorPrimary),
-          opacity = 0.65F
-      )
     }
     recyclerView.adapter = adapter
     if (!service.meta().isVisual) {
@@ -324,6 +367,7 @@ class ServiceFragment : InjectingBaseFragment(),
 
   override fun onSaveInstanceState(outState: Bundle) {
     outState.run {
+      putBoolean("detailDisplayed", detailDisplayed)
       if (currentPage != service.meta().firstPageKey) {
         putString("currentPage", currentPage)
       }
@@ -411,7 +455,6 @@ class ServiceFragment : InjectingBaseFragment(),
           swipeRefreshLayout.isEnabled = true
           swipeRefreshLayout.isRefreshing = false
         }
-        .trace("Data load - ${service.meta().id}")
         .doFinally {
           dataLoading = false
           recyclerView.post {
@@ -483,7 +526,7 @@ class ServiceFragment : InjectingBaseFragment(),
                 // TODO Show some sort of generic response error
                 progress.hide()
                 swipeRefreshLayout.hide()
-                errorTextView.text = activity.getString(R.string.unknown_issue)
+                errorTextView.text = activity.getString(io.sweers.catchup.base.ui.R.string.unknown_issue)
                 errorView.show()
                 AnimatedVectorDrawableCompat.create(activity, R.drawable.avd_no_connection)
                     ?.let {
@@ -512,8 +555,9 @@ class ServiceFragment : InjectingBaseFragment(),
   }
 
   private class TextAdapter(
-      private val bindDelegate: (CatchUpItem, CatchUpItemViewHolder) -> Unit)
-    : DisplayableItemAdapter<CatchUpItem, ViewHolder>() {
+    private val bindDelegate: (CatchUpItem, CatchUpItemViewHolder, clicksChannel: SendChannel<UrlMeta>) -> Unit
+  ) :
+      DisplayableItemAdapter<CatchUpItem, ViewHolder>() {
 
     private var showLoadingMore = false
 
@@ -528,7 +572,7 @@ class ServiceFragment : InjectingBaseFragment(),
       return data[position].stableId()
     }
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
       val layoutInflater = LayoutInflater.from(parent.context)
       when (viewType) {
         TYPE_ITEM -> return CatchUpItemViewHolder(
@@ -543,10 +587,10 @@ class ServiceFragment : InjectingBaseFragment(),
       throw InvalidParameterException("Unrecognized view type - $viewType")
     }
 
-    override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
       when (getItemViewType(position)) {
         TYPE_ITEM -> try {
-          bindDelegate(data[position], holder as CatchUpItemViewHolder)
+          bindDelegate(data[position], holder as CatchUpItemViewHolder, clicksChannel())
         } catch (error: Exception) {
           e(error) { "Bind delegate failure!" }
         }
@@ -589,21 +633,23 @@ class ServiceFragment : InjectingBaseFragment(),
   }
 }
 
-class LoadingMoreHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+class LoadingMoreHolder(itemView: View) : ViewHolder(itemView) {
   val progress: ProgressBar = itemView as ProgressBar
 }
 
 @Suppress("unused")
 internal sealed class LoadResult<T : DisplayableItem> {
-  data class DiffResultData<T : DisplayableItem>(val data: List<T>,
-      val diffResult: DiffResult) : LoadResult<T>()
+  data class DiffResultData<T : DisplayableItem>(
+    val data: List<T>,
+    val diffResult: DiffResult
+  ) : LoadResult<T>()
 
   data class NewData<T : DisplayableItem>(val newData: List<T>) : LoadResult<T>()
 }
 
 internal class ItemUpdateCallback<T : DisplayableItem>(
-    private val oldItems: List<T>,
-    private val newItems: List<T>
+  private val oldItems: List<T>,
+  private val newItems: List<T>
 ) : DiffUtil.Callback() {
   override fun areItemsTheSame(oldItemPosition: Int, newItemPosition: Int) =
       oldItems[oldItemPosition].stableId() == newItems[newItemPosition].stableId()

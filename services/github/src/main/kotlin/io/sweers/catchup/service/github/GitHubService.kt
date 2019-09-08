@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2018 Zac Sweers
+ * Copyright (C) 2019. Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.sweers.catchup.service.github
 
 import android.graphics.Color
@@ -31,12 +30,12 @@ import dagger.multibindings.IntoMap
 import io.reactivex.Observable
 import io.reactivex.Single
 import io.sweers.catchup.gemoji.EmojiMarkdownConverter
-import io.sweers.catchup.gemoji.replaceMarkdownEmojis
+import io.sweers.catchup.gemoji.replaceMarkdownEmojisIn
 import io.sweers.catchup.libraries.retrofitconverters.DecodingConverter
+import io.sweers.catchup.libraries.retrofitconverters.delegatingCallFactory
 import io.sweers.catchup.service.api.CatchUpItem
 import io.sweers.catchup.service.api.DataRequest
 import io.sweers.catchup.service.api.DataResult
-import io.sweers.catchup.service.api.LinkHandler
 import io.sweers.catchup.service.api.Mark
 import io.sweers.catchup.service.api.Service
 import io.sweers.catchup.service.api.ServiceKey
@@ -67,12 +66,12 @@ private annotation class InternalApi
 private const val SERVICE_KEY = "github"
 
 internal class GitHubService @Inject constructor(
-    @InternalApi private val serviceMeta: ServiceMeta,
-    private val apolloClient: Lazy<ApolloClient>,
-    private val emojiMarkdownConverter: Lazy<EmojiMarkdownConverter>,
-    private val gitHubApi: Lazy<GitHubApi>,
-    private val linkHandler: LinkHandler)
-  : TextService {
+  @InternalApi private val serviceMeta: ServiceMeta,
+  private val apolloClient: Lazy<ApolloClient>,
+  private val emojiMarkdownConverter: Lazy<EmojiMarkdownConverter>,
+  private val gitHubApi: Lazy<GitHubApi>
+) :
+  TextService {
 
   override fun meta() = serviceMeta
 
@@ -83,8 +82,6 @@ internal class GitHubService @Inject constructor(
           fetchByQuery(request)
         }
   }
-
-  override fun linkHandler() = linkHandler
 
   private fun fetchByScraping(): Single<DataResult> {
     return gitHubApi
@@ -101,9 +98,8 @@ internal class GitHubService @Inject constructor(
                 score = "★" to stars,
                 tag = language,
                 itemClickUrl = url,
-                mark = starsToday?.let {
-                  Mark(text = it.toString(),
-                      textPrefix = "+",
+                mark = starsToday?.toString()?.let {
+                  Mark(text = it,
                       icon = R.drawable.ic_star_black_24dp,
                       iconTintColor = languageColor?.let(Color::parseColor)
                   )
@@ -123,10 +119,10 @@ internal class GitHubService @Inject constructor(
 
     val searchQuery = apolloClient.get().query(GitHubSearchQuery(query,
         50,
-        LanguageOrder.builder()
-            .direction(OrderDirection.DESC)
-            .field(LanguageOrderField.SIZE)
-            .build(),
+        LanguageOrder(
+            direction = OrderDirection.DESC,
+            field = LanguageOrderField.SIZE
+        ),
         Input.fromNullable(request.pageId.nullIfBlank())))
         .httpCachePolicy(HttpCachePolicy.NETWORK_ONLY)
 
@@ -138,31 +134,31 @@ internal class GitHubService @Inject constructor(
           }
         }
         .map { it.data()!! }
-        .flatMap { data ->
-          Observable.fromIterable(data.search().nodes().orEmpty())
+        .flatMap { (search) ->
+          Observable.fromIterable(search.nodes?.mapNotNull { it?.inlineFragment }.orEmpty())
               .cast(AsRepository::class.java)
               .map {
                 with(it) {
-                  val description = description()
-                      ?.let { " — ${replaceMarkdownEmojis(it, emojiMarkdownConverter.get())}" }
+                  val description = description
+                      ?.let { " — ${emojiMarkdownConverter.get().replaceMarkdownEmojisIn(it)}" }
                       .orEmpty()
 
                   CatchUpItem(
-                      id = id().hashCode().toLong(),
-                      title = "${name()}$description",
-                      score = "★" to stargazers().totalCount(),
-                      timestamp = createdAt(),
-                      author = owner().login(),
-                      tag = languages()?.nodes()?.firstOrNull()?.name(),
-                      source = licenseInfo()?.name(),
-                      itemClickUrl = url().toString()
+                      id = id.hashCode().toLong(),
+                      title = "$name$description",
+                      score = "★" to stargazers.totalCount,
+                      timestamp = createdAt,
+                      author = owner.login,
+                      tag = languages?.nodes?.firstOrNull()?.name,
+                      source = licenseInfo?.name,
+                      itemClickUrl = url.toString()
                   )
                 }
               }
               .toList()
               .map {
-                if (data.search().pageInfo().hasNextPage()) {
-                  DataResult(it, data.search().pageInfo().endCursor())
+                if (search.pageInfo.hasNextPage) {
+                  DataResult(it, search.pageInfo.endCursor)
                 } else {
                   DataResult(it, null)
                 }
@@ -212,16 +208,17 @@ abstract class GitHubModule {
   companion object {
     @Provides
     @JvmStatic
-    internal fun provideGitHubService(client: Lazy<OkHttpClient>,
-        rxJavaCallAdapterFactory: RxJava2CallAdapterFactory): GitHubApi {
+    internal fun provideGitHubService(
+      client: Lazy<OkHttpClient>,
+      rxJavaCallAdapterFactory: RxJava2CallAdapterFactory
+    ): GitHubApi {
       return Retrofit.Builder().baseUrl(GitHubApi.ENDPOINT)
-          .callFactory { client.get().newCall(it) }
+          .delegatingCallFactory(client)
           .addCallAdapterFactory(rxJavaCallAdapterFactory)
           .addConverterFactory(DecodingConverter.newFactory(GitHubTrendingParser::parse))
-          .validateEagerly(BuildConfig.DEBUG)
+          // .validateEagerly(BuildConfig.DEBUG) // Enable with cross-module debug build configs
           .build()
           .create(GitHubApi::class.java)
     }
   }
-
 }

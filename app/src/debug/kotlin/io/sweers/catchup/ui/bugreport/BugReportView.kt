@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2018 Zac Sweers
+ * Copyright (C) 2019. Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.sweers.catchup.ui.bugreport
 
 import android.content.Context
@@ -21,9 +20,17 @@ import android.util.AttributeSet
 import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
-import com.jakewharton.rxbinding2.widget.RxTextView
 import io.sweers.catchup.R
+import io.sweers.catchup.flowbinding.viewScope
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
 import kotterknife.bindView
+import ru.ldralighieri.corbind.view.focusChanges
+import ru.ldralighieri.corbind.widget.afterTextChangeEvents
 
 class BugReportView(context: Context, attrs: AttributeSet) : LinearLayout(context, attrs) {
   private val usernameView by bindView<EditText>(R.id.username)
@@ -40,23 +47,31 @@ class BugReportView(context: Context, attrs: AttributeSet) : LinearLayout(contex
 
   override fun onFinishInflate() {
     super.onFinishInflate()
-    usernameView.setOnFocusChangeListener { _, hasFocus ->
-      if (!hasFocus) {
-        usernameView.error = if (usernameView.text.isNullOrBlank()) "Cannot be empty." else null
-      }
+    viewScope().launch {
+      usernameView.focusChanges()
+          .drop(1)
+          .collect { hasFocus ->
+            if (!hasFocus) {
+              usernameView.error = if (usernameView.text.isNullOrBlank()) "Cannot be empty." else null
+            }
+          }
+      titleView.focusChanges()
+          .drop(1)
+          .collect { hasFocus ->
+            if (!hasFocus) {
+              titleView.error = if (titleView.text.isNullOrBlank()) "Cannot be empty." else null
+            }
+          }
+      combine(
+          titleView.afterTextChangeEvents()
+              .map { !it.editable.isNullOrBlank() },
+          usernameView.afterTextChangeEvents()
+              .map { !it.editable.isNullOrBlank() },
+          transform = { title, username -> title && username }
+      )
+          .onEach { listener?.onStateChanged(it) }
+          .collect()
     }
-    titleView.setOnFocusChangeListener { _, hasFocus ->
-      if (!hasFocus) {
-        titleView.error = if (titleView.text.isNullOrBlank()) "Cannot be empty." else null
-      }
-    }
-    RxTextView.afterTextChangeEvents(titleView)
-        .mergeWith(RxTextView.afterTextChangeEvents(usernameView))
-        .subscribe {
-          val titleIsBlank = titleView.text.isNullOrBlank()
-          val userNameIsBlank = usernameView.text.isNullOrBlank()
-          listener?.onStateChanged(!titleIsBlank && !userNameIsBlank)
-        }
 
     screenshotView.isChecked = true
     logsView.isChecked = true
@@ -73,9 +88,11 @@ class BugReportView(context: Context, attrs: AttributeSet) : LinearLayout(contex
         screenshotView.isChecked,
         logsView.isChecked)
 
-  data class Report(val username: String,
-      val title: String,
-      val description: String,
-      val includeScreenshot: Boolean,
-      val includeLogs: Boolean)
+  data class Report(
+    val username: String,
+    val title: String,
+    val description: String,
+    val includeScreenshot: Boolean,
+    val includeLogs: Boolean
+  )
 }

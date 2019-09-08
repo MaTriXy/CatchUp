@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2018 Zac Sweers
+ * Copyright (C) 2019. Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,15 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.sweers.catchup.data
 
 import android.app.Application
 import android.util.Log
 import androidx.annotation.WorkerThread
-import io.reactivex.Observable
-import io.reactivex.Single
-import io.reactivex.subjects.PublishSubject
+import io.sweers.catchup.flowbinding.safeOffer
+import kotlinx.coroutines.channels.BroadcastChannel
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.suspendCancellableCoroutine
 import okio.BufferedSink
 import okio.buffer
 import okio.sink
@@ -34,12 +36,14 @@ import java.util.ArrayDeque
 import java.util.ArrayList
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 @Singleton
 class LumberYard @Inject constructor(private val app: Application) {
 
   private val entries = ArrayDeque<Entry>(BUFFER_SIZE + 1)
-  private val entrySubject = PublishSubject.create<Entry>()
+  private val entryChannel = BroadcastChannel<Entry>(Channel.BUFFERED)
 
   fun tree(): Timber.Tree {
     return object : Timber.DebugTree() {
@@ -56,53 +60,49 @@ class LumberYard @Inject constructor(private val app: Application) {
       entries.removeFirst()
     }
 
-    entrySubject.onNext(entry)
+    entryChannel.safeOffer(entry)
   }
 
   fun bufferedLogs() = ArrayList(entries)
 
-  fun logs(): Observable<Entry> = entrySubject.hide()
+  fun logs(): Flow<Entry> = entryChannel.asFlow()
 
   /**
    * Save the current logs to disk.
    */
-  fun save(): Single<File> {
-    return Single.create<File> { subscriber ->
+  suspend fun save(): File = suspendCancellableCoroutine { continuation ->
       val folder = app.getExternalFilesDir(null)
       if (folder == null) {
-        subscriber.onError(IOException("External storage is not mounted."))
-        return@create
-      }
+        continuation.resumeWithException(IOException("External storage is not mounted."))
+      } else {
+        val fileName = ISO_LOCAL_DATE_TIME.format(LocalDateTime.now())
+        val output = File(folder, fileName)
 
-      val fileName = ISO_LOCAL_DATE_TIME.format(LocalDateTime.now())
-      val output = File(folder, fileName)
-
-      var sink: BufferedSink? = null
-      try {
-        sink = output.sink().buffer()
-        val entries1 = bufferedLogs()
-        for (entry in entries1) {
-          sink.writeUtf8(entry.prettyPrint()).writeByte('\n'.toInt())
-        }
-        // need to close before emiting file to the subscriber, because when subscriber receives
-        // data in the same thread the file may be truncated
-        sink.close()
-        sink = null
-
-        subscriber.onSuccess(output)
-      } catch (e: IOException) {
-        subscriber.onError(e)
-      } finally {
-        if (sink != null) {
-          try {
-            sink.close()
-          } catch (e: IOException) {
-            subscriber.onError(e)
+        var sink: BufferedSink? = null
+        try {
+          sink = output.sink().buffer()
+          val entries1 = bufferedLogs()
+          for (entry in entries1) {
+            sink.writeUtf8(entry.prettyPrint()).writeByte('\n'.toInt())
           }
+          // need to close before emiting file to the subscriber, because when subscriber receives
+          // data in the same thread the file may be truncated
+          sink.close()
+          sink = null
 
+          continuation.resume(output)
+        } catch (e: IOException) {
+          continuation.resumeWithException(e)
+        } finally {
+          if (sink != null) {
+            try {
+              sink.close()
+            } catch (e: IOException) {
+              continuation.resumeWithException(e)
+            }
+          }
         }
       }
-    }
   }
 
   /**
@@ -113,7 +113,7 @@ class LumberYard @Inject constructor(private val app: Application) {
   fun cleanUp(): Long {
     return app.getExternalFilesDir(null)?.let { folder ->
       val initialSize = folder.length()
-      folder.listFiles()
+      (folder.listFiles() ?: return -1L)
           .asSequence()
           .filter { it.name.endsWith(".log") }
           .forEach { it.delete() }

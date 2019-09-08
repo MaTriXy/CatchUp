@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2018 Zac Sweers
+ * Copyright (C) 2019. Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.sweers.catchup.app
 
 import android.app.Application
@@ -22,6 +21,7 @@ import dagger.Component
 import dagger.android.AndroidInjectionModule
 import dagger.android.support.AndroidSupportInjectionModule
 import io.sweers.catchup.data.DataModule
+import io.sweers.catchup.data.InstanceBasedOkHttpLibraryGlideModule
 import io.sweers.catchup.ui.activity.ActivityBindingModule
 import javax.inject.Singleton
 
@@ -31,17 +31,17 @@ import javax.inject.Singleton
   AndroidSupportInjectionModule::class,
   AndroidInjectionModule::class,
   ApplicationModule::class,
-  DataModule::class
+  DataModule::class,
+  ReleaseApplicationModule::class
 ])
 interface ApplicationComponent {
 
-  fun inject(application: ReleaseCatchUpApplication)
+  fun okhttpGlideComponentBuilder(): InstanceBasedOkHttpLibraryGlideModule.Component.Builder
 
-  @Component.Builder
+  fun inject(application: CatchUpApplication)
+
+  @Component.Factory
   interface Builder {
-    fun build(): ApplicationComponent
-
-    @BindsInstance
-    fun application(application: Application): Builder
+    fun create(@BindsInstance application: Application): ApplicationComponent
   }
 }

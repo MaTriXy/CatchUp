@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2018 Zac Sweers
+ * Copyright (C) 2019. Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.sweers.catchup.data
 
 import android.content.Context
@@ -36,7 +35,9 @@ import io.sweers.catchup.BuildConfig
 import io.sweers.catchup.data.github.type.CustomType
 import io.sweers.catchup.util.injection.qualifiers.ApplicationContext
 import io.sweers.catchup.util.network.AuthInterceptor
+import okhttp3.Interceptor
 import okhttp3.OkHttpClient
+import okhttp3.Response
 import javax.inject.Qualifier
 import javax.inject.Singleton
 
@@ -48,6 +49,9 @@ internal object GithubApolloModule {
   @Qualifier
   private annotation class InternalApi
 
+  /**
+   * TODO this hits disk on startup -_-
+   */
   @Provides
   @JvmStatic
   @Singleton
@@ -65,8 +69,9 @@ internal object GithubApolloModule {
   @JvmStatic
   @Singleton
   internal fun provideGitHubOkHttpClient(
-      client: OkHttpClient,
-      httpCache: HttpCache): OkHttpClient = client.newBuilder()
+    client: OkHttpClient,
+    httpCache: HttpCache
+  ): OkHttpClient = client.newBuilder()
       .addInterceptor(httpCache.interceptor())
       .addInterceptor(AuthInterceptor("token", BuildConfig.GITHUB_DEVELOPER_TOKEN))
       .build()
@@ -83,8 +88,10 @@ internal object GithubApolloModule {
       }
     }
 
-    override fun fromFieldRecordSet(field: ResponseField,
-        objectSource: Map<String, Any>): CacheKey =// Most objects use id
+    override fun fromFieldRecordSet(
+      field: ResponseField,
+      objectSource: Map<String, Any>
+    ): CacheKey = // Most objects use id
         objectSource["id"].let {
           return when (val value = it) {
             is String -> formatter(value)
@@ -92,8 +99,10 @@ internal object GithubApolloModule {
           }
         }
 
-    override fun fromFieldArguments(field: ResponseField,
-        variables: Operation.Variables): CacheKey = CacheKey.NO_KEY
+    override fun fromFieldArguments(
+      field: ResponseField,
+      variables: Operation.Variables
+    ): CacheKey = CacheKey.NO_KEY
   }
 
   @Provides
@@ -105,21 +114,35 @@ internal object GithubApolloModule {
   @Provides
   @JvmStatic
   @Singleton
-  internal fun provideApolloClient(@InternalApi client: Lazy<OkHttpClient>,
-      cacheFactory: NormalizedCacheFactory<*>,
-      resolver: CacheKeyResolver,
-      httpCache: HttpCache): ApolloClient {
-    val instantAdapter = ISO8601InstantApolloAdapter()
-    val httpUrlAdapter = HttpUrlApolloAdapter()
+  internal fun provideApolloClient(
+    @InternalApi client: Lazy<OkHttpClient>,
+    cacheFactory: NormalizedCacheFactory<*>,
+    resolver: CacheKeyResolver,
+    httpCache: Lazy<HttpCache>
+  ): ApolloClient {
+    // Lazily involve httpcache so we don't hit disk when instantiating this
+    val lazyHttpCache = object : HttpCache {
+      override fun clear() = httpCache.get().clear()
+
+      override fun removeQuietly(cacheKey: String) = httpCache.get().removeQuietly(cacheKey)
+
+      override fun remove(cacheKey: String) = httpCache.get().remove(cacheKey)
+
+      override fun interceptor(): Interceptor = httpCache.get().interceptor()
+
+      override fun read(cacheKey: String): Response = httpCache.get().read(cacheKey)
+
+      override fun read(cacheKey: String, expireAfterRead: Boolean): Response = httpCache.get().read(cacheKey, expireAfterRead)
+    }
     return ApolloClient.builder()
         .serverUrl(SERVER_URL)
-        .httpCache(httpCache)
+        .httpCache(lazyHttpCache)
         .callFactory { client.get().newCall(it) }
         .normalizedCache(cacheFactory, resolver)
-        .addCustomTypeAdapter(CustomType.DATETIME, instantAdapter)
-        .addCustomTypeAdapter(CustomType.URI, httpUrlAdapter)
-        .addCustomTypeAdapter(CustomType.DATETIME, instantAdapter)
-        .addCustomTypeAdapter(CustomType.URI, httpUrlAdapter)
+        .addCustomTypeAdapter(CustomType.DATETIME, ISO8601InstantApolloAdapter)
+        .addCustomTypeAdapter(CustomType.URI, HttpUrlApolloAdapter)
+        .addCustomTypeAdapter(io.sweers.catchup.service.github.type.CustomType.DATETIME, ISO8601InstantApolloAdapter)
+        .addCustomTypeAdapter(io.sweers.catchup.service.github.type.CustomType.URI, HttpUrlApolloAdapter)
         .build()
   }
 }

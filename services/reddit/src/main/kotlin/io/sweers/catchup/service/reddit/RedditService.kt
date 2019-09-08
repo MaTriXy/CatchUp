@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2018 Zac Sweers
+ * Copyright (C) 2019. Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.sweers.catchup.service.reddit
 
 import com.squareup.moshi.Moshi
@@ -24,10 +23,10 @@ import dagger.Provides
 import dagger.Reusable
 import dagger.multibindings.IntoMap
 import io.reactivex.Single
+import io.sweers.catchup.libraries.retrofitconverters.delegatingCallFactory
 import io.sweers.catchup.service.api.CatchUpItem
 import io.sweers.catchup.service.api.DataRequest
 import io.sweers.catchup.service.api.DataResult
-import io.sweers.catchup.service.api.LinkHandler
 import io.sweers.catchup.service.api.Mark.Companion.createCommentMark
 import io.sweers.catchup.service.api.Service
 import io.sweers.catchup.service.api.ServiceKey
@@ -55,10 +54,10 @@ private annotation class InternalApi
 private const val SERVICE_KEY = "reddit"
 
 internal class RedditService @Inject constructor(
-    @InternalApi private val serviceMeta: ServiceMeta,
-    private val api: RedditApi,
-    private val linkHandler: LinkHandler)
-  : TextService {
+  @InternalApi private val serviceMeta: ServiceMeta,
+  private val api: RedditApi
+) :
+  TextService {
 
   override fun meta() = serviceMeta
 
@@ -88,8 +87,6 @@ internal class RedditService @Inject constructor(
           DataResult(data, redditListingRedditResponse.data.after)
         }
   }
-
-  override fun linkHandler() = linkHandler
 }
 
 @Meta
@@ -145,15 +142,16 @@ abstract class RedditModule {
     @Provides
     @JvmStatic
     internal fun provideRedditOkHttpClient(
-        client: OkHttpClient): OkHttpClient {
+      client: OkHttpClient
+    ): OkHttpClient {
       return client.newBuilder()
           .addNetworkInterceptor { chain ->
             var request = chain.request()
-            val url = request.url()
+            val url = request.url
             request = request.newBuilder()
                 .header("User-Agent", "CatchUp app by /u/pandanomic")
                 .url(url.newBuilder()
-                    .encodedPath(url.encodedPath() + ".json")
+                    .encodedPath("${url.encodedPath}.json")
                     .addQueryParameter("raw_json", "1") // So tokens aren't escaped
                     .build())
                 .build()
@@ -164,14 +162,16 @@ abstract class RedditModule {
 
     @Provides
     @JvmStatic
-    internal fun provideRedditApi(@InternalApi client: Lazy<OkHttpClient>,
-        rxJavaCallAdapterFactory: RxJava2CallAdapterFactory,
-        @InternalApi moshi: Moshi): RedditApi {
+    internal fun provideRedditApi(
+      @InternalApi client: Lazy<OkHttpClient>,
+      rxJavaCallAdapterFactory: RxJava2CallAdapterFactory,
+      @InternalApi moshi: Moshi
+    ): RedditApi {
       val retrofit = Retrofit.Builder().baseUrl(RedditApi.ENDPOINT)
-          .callFactory { client.get().newCall(it) }
+          .delegatingCallFactory(client)
           .addCallAdapterFactory(rxJavaCallAdapterFactory)
           .addConverterFactory(MoshiConverterFactory.create(moshi))
-          .validateEagerly(BuildConfig.DEBUG)
+          // .validateEagerly(BuildConfig.DEBUG) // Enable with cross-module debug build configs
           .build()
       return retrofit.create(RedditApi::class.java)
     }

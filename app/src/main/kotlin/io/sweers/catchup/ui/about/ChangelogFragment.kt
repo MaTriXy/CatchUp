@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2018 Zac Sweers
+ * Copyright (C) 2019. Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.sweers.catchup.ui.about
 
 import android.os.Bundle
@@ -23,6 +22,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.animation.OvershootInterpolator
 import android.widget.ProgressBar
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.RecyclerView.Adapter
@@ -37,14 +37,17 @@ import io.sweers.catchup.R
 import io.sweers.catchup.R.layout
 import io.sweers.catchup.data.LinkManager
 import io.sweers.catchup.data.github.RepoReleasesQuery
+import io.sweers.catchup.gemoji.EmojiMarkdownConverter
+import io.sweers.catchup.gemoji.replaceMarkdownEmojisIn
 import io.sweers.catchup.service.api.UrlMeta
 import io.sweers.catchup.ui.Scrollable
 import io.sweers.catchup.ui.base.CatchUpItemViewHolder
-import io.sweers.catchup.ui.base.InjectableBaseFragment
+import io.sweers.catchup.base.ui.InjectableBaseFragment
 import io.sweers.catchup.util.e
 import io.sweers.catchup.util.hide
 import io.sweers.catchup.util.w
 import jp.wasabeef.recyclerview.animators.FadeInUpAnimator
+import kotlinx.coroutines.launch
 import kotterknife.bindView
 import org.threeten.bp.Instant
 import java.io.IOException
@@ -56,6 +59,8 @@ class ChangelogFragment : InjectableBaseFragment(), Scrollable {
   lateinit var apolloClient: ApolloClient
   @Inject
   internal lateinit var linkManager: LinkManager
+  @Inject
+  internal lateinit var markdownConverter: EmojiMarkdownConverter
 
   private val progressBar by bindView<ProgressBar>(R.id.progress)
   private val recyclerView by bindView<RecyclerView>(R.id.list)
@@ -63,9 +68,12 @@ class ChangelogFragment : InjectableBaseFragment(), Scrollable {
   private lateinit var layoutManager: LinearLayoutManager
   private lateinit var adapter: ChangelogAdapter
 
-  override fun inflateView(inflater: LayoutInflater, container: ViewGroup?,
-      savedInstanceState: Bundle?): View {
-    return inflater.inflate(R.layout.fragment_changelog, container, false)
+  override fun inflateView(
+    inflater: LayoutInflater,
+    container: ViewGroup?,
+    savedInstanceState: Bundle?
+  ): View {
+    return inflater.inflate(layout.fragment_changelog, container, false)
   }
 
   override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -112,18 +120,24 @@ class ChangelogFragment : InjectableBaseFragment(), Scrollable {
 
   private fun requestItems(): Single<List<ChangeLogItem>> {
     return Rx2Apollo.from(apolloClient.query(RepoReleasesQuery()))
-        .flatMapIterable { it.data()!!.repository()!!.releases().nodes() }
+        .flatMapIterable { it.data()!!.repository!!.releases.nodes }
         .map {
           with(it) {
             ChangeLogItem(
-                name = name()!!,
-                timestamp = publishedAt()!!,
-                tag = tag()!!.name(),
-                sha = tag()!!.target().abbreviatedOid(),
-                url = url().toString(),
-                description = description()!!
+                name = name!!,
+                timestamp = publishedAt!!,
+                tag = tag!!.name,
+                sha = tag.target.abbreviatedOid,
+                url = url.toString(),
+                description = description!!
             )
           }
+        }
+        .map {
+          it.copy(
+              name = markdownConverter.replaceMarkdownEmojisIn(it.name),
+              description = markdownConverter.replaceMarkdownEmojisIn(it.description)
+          )
         }
         .toList()
   }
@@ -162,7 +176,9 @@ class ChangelogFragment : InjectableBaseFragment(), Scrollable {
         author(null)
         hideMark()
         holder.container.setOnClickListener {
-          linkManager.openUrl(UrlMeta(item.url, 0, itemView.context))
+          viewLifecycleOwner.lifecycleScope.launch {
+            linkManager.openUrl(UrlMeta(item.url, 0, itemView.context))
+          }
         }
       }
     }
@@ -170,10 +186,10 @@ class ChangelogFragment : InjectableBaseFragment(), Scrollable {
 }
 
 private data class ChangeLogItem(
-    val name: String,
-    val timestamp: Instant,
-    val tag: String,
-    val sha: String,
-    val url: String,
-    val description: String
+  val name: String,
+  val timestamp: Instant,
+  val tag: String,
+  val sha: String,
+  val url: String,
+  val description: String
 )

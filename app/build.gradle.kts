@@ -20,7 +20,6 @@ import java.util.Date
 
 plugins {
   id("com.android.application")
-  id("io.sweers.psync")
   kotlin("android")
   kotlin("kapt")
   id("com.apollographql.android")
@@ -30,24 +29,19 @@ plugins {
 
 apply {
   from(rootProject.file("gradle/config-kotlin-sources.gradle"))
-  if (hasProperty("enableFirebasePerf")) {
-    plugin("com.google.firebase.firebase-perf")
-  }
 }
-
-// TODO Can stop doing this when BuildConfig becomes a class rather than a java file
-val isRelease = gradle.startParameter.taskNames.any { it.endsWith("Release") }
 
 android {
   compileSdkVersion(deps.android.build.compileSdkVersion)
-  buildToolsVersion(deps.android.build.buildToolsVersion)
 
+  val versionCodePH = 99999
+  val versionNamePH = "versionplaceholder"
   defaultConfig {
     applicationId = "io.sweers.catchup"
     minSdkVersion(deps.android.build.minSdkVersion)
     targetSdkVersion(deps.android.build.targetSdkVersion)
-    versionCode = deps.build.gitCommitCount(project, isRelease)
-    versionName = deps.build.gitTag(project)
+    versionCode = versionCodePH
+    versionName = versionNamePH
     multiDexEnabled = false
 
     the<BasePluginConvention>().archivesBaseName = "catchup"
@@ -57,21 +51,45 @@ android {
     resValue("integer", "git_timestamp", "${deps.build.gitTimestamp(project)}")
     buildConfigField("String", "GITHUB_DEVELOPER_TOKEN",
         "\"${properties["catchup_github_developer_token"]}\"")
-    buildConfigField("String", "SMMRY_API_KEY",
-        "\"${properties["catchup_smmry_api_key"]}\"")
     resValue("string", "changelog_text", "\"${getChangelog()}\"")
+  }
+  val commitCountLazy by lazy { deps.build.gitCommitCount(project).toString() }
+  val versionNameLazy by lazy { deps.build.gitTag(project) }
+  applicationVariants.all {
+    outputs.all {
+      processManifestProvider.configure {
+        inputs.property("commit_count") { commitCountLazy }
+        inputs.property("version_name") { versionNameLazy }
+        doLast {
+          // Have to walk the tree here because APK splits results in more nested dirs
+          this@configure.manifestOutputDirectory.get().asFile.walkTopDown()
+              .filter { it.name == "AndroidManifest.xml" }
+              .forEach { manifest ->
+                val content = manifest.readText()
+                manifest.writeText(
+                    content.replace("$versionCodePH", commitCountLazy)
+                    .replace(versionNamePH, versionNameLazy)
+                )
+              }
+        }
+      }
+    }
   }
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_1_8
     targetCompatibility = JavaVersion.VERSION_1_8
   }
   signingConfigs {
-    create("release") {
-      keyAlias = "catchupkey"
-      storeFile = rootProject.file("signing/app-release.jks")
-      storePassword = properties["catchup_signing_store_password"].toString()
-      keyPassword = properties["catchup_signing_key_password"].toString()
-      isV2SigningEnabled = true
+    if (rootProject.file("signing/app-release.jks").exists()) {
+      create("release") {
+        keyAlias = "catchupkey"
+        storeFile = rootProject.file("signing/app-release.jks")
+        storePassword = properties["catchup_signing_store_password"].toString()
+        keyPassword = properties["catchup_signing_key_password"].toString()
+        isV2SigningEnabled = true
+      }
+    } else {
+      create("release").initWith(findByName("debug"))
     }
   }
   packagingOptions {
@@ -102,14 +120,15 @@ android {
       versionNameSuffix = "-dev"
       ext["enableBugsnag"] = false
       buildConfigField("String", "IMGUR_CLIENT_ACCESS_TOKEN",
-          "\"${project.properties["catchup_imgur_access_token"].toString()}\"")
+          "\"${project.properties["catchup_imgur_access_token"]}\"")
       buildConfigField("boolean", "CRASH_ON_TIMBER_ERROR",
           "Boolean.parseBoolean(\"${project.properties["catchup.crashOnTimberError"]}\")")
     }
     getByName("release") {
       buildConfigField("String", "BUGSNAG_KEY",
-          "\"${properties["catchup_bugsnag_key"].toString()}\"")
-      signingConfig = signingConfigs.getByName(if ("useDebugSigning" in properties) "debug" else "release")
+          "\"${properties["catchup_bugsnag_key"]}\"")
+      signingConfig = signingConfigs.getByName(
+          if ("useDebugSigning" in properties) "debug" else "release")
       postprocessing.apply {
         proguardFiles("proguard-rules.pro")
         isOptimizeCode = true
@@ -136,6 +155,7 @@ android {
     textOutput("stdout")
     htmlReport = !deps.build.ci
     xmlReport = !deps.build.ci
+    isCheckDependencies = true
   }
   // Should be fixed now, disable if need be
   // https://github.com/bugsnag/bugsnag-android-gradle-plugin/issues/59
@@ -183,12 +203,17 @@ android {
 
 kapt {
   correctErrorTypes = true
-  useBuildCache = true
   mapDiagnosticLocations = true
   arguments {
     arg("room.schemaLocation", "$projectDir/schemas")
+    arg("room.incremental", "true")
     arg("moshi.generated", "javax.annotation.Generated")
-    arg("dagger.formatGeneratedSource", "disabled")
+  }
+
+  // Compiling with JDK 11+, but kapt doesn't forward source/target versions.
+  javacOptions {
+    option("-source", "8")
+    option("-target", "8")
   }
 }
 
@@ -198,33 +223,24 @@ play {
   serviceAccountCredentials = rootProject.file("signing/play-account.p12")
 }
 
-//bugsnag {
+// bugsnag {
 //  apiKey = properties["catchup_bugsnag_key"].toString()
 //  autoProguardConfig = false
 //  ndk = true
-//}
-
-psync {
-  includesPattern = "**/xml/prefs_*.xml"
-  generateRx = true
-  packageName = "io.sweers.catchup"
-}
-
-if (gradle.startParameter.isOffline) {
-  afterEvaluate {
-    // Because this stalls in offline mode
-    tasks.findByName("installApolloCodegen")?.deleteAllActions()
-  }
-}
+// }
 
 apollo {
-  customTypeMapping["DateTime"] = "org.threeten.bp.Instant"
-  customTypeMapping["URI"] = "okhttp3.HttpUrl"
+  customTypeMapping.set(mapOf(
+      "DateTime" to "org.threeten.bp.Instant",
+      "URI" to "okhttp3.HttpUrl"
+  ))
+  setGenerateKotlinModels(true)
 }
 
 tasks.withType<KotlinCompile> {
   kotlinOptions {
     freeCompilerArgs = build.standardFreeKotlinCompilerArgs
+    jvmTarget = "1.8"
   }
 }
 
@@ -256,7 +272,7 @@ open class CutChangelogTask : DefaultTask() {
         builder.append(warning).toString()
       } else it
     }
-    if (!newChangelog.isEmpty()) {
+    if (newChangelog.isNotEmpty()) {
       project.file(whatsNewPath).writer().use {
         it.write(newChangelog)
       }
@@ -279,7 +295,7 @@ open class CutChangelogTask : DefaultTask() {
         val line = iterator.next()
         if (line.startsWith("#")) {
           break
-        } else if (!line.isEmpty()) {
+        } else if (line.isNotEmpty()) {
           log.append(line).append("\n")
         }
       }
@@ -318,7 +334,7 @@ fun getChangelog(): String {
         } else {
           headerCount++
         }
-      } else if (!line.isEmpty()) {
+      } else if (line.isNotEmpty()) {
         seenChanges = true
         log.append(line).append("\n")
       }
@@ -385,14 +401,24 @@ tasks.create("updateVersion", UpdateVersion::class.java) {
 
 dependencies {
   kapt(project(":libraries:tooling:spi-visualizer"))
-  compileOnly(project(":libraries:tooling:spi-visualizer"))
 
-  implementation(project(":libraries:third_party:bypass"))
+  implementation(deps.markwon.core)
+  implementation(deps.markwon.extStrikethrough)
+  implementation(deps.markwon.extTables)
+  implementation(deps.markwon.extTasklist)
+  implementation(deps.markwon.html)
+  implementation(deps.markwon.image)
+  implementation(deps.markwon.imageGlide)
+  implementation(deps.markwon.linkify)
+//  implementation(deps.markwon.syntaxHighlight) // https://github.com/noties/Markwon/issues/148
   implementation(project(":service-api"))
   implementation(project(":service-registry:service-registry"))
+  implementation(project(":libraries:base-ui"))
   implementation(project(":libraries:gemoji"))
   implementation(project(":libraries:kotlinutil"))
+  implementation(project(":libraries:smmry"))
   implementation(project(":libraries:util"))
+  implementation(project(":libraries:flowbinding"))
 
   // Support libs
   implementation(deps.android.androidx.annotations)
@@ -406,11 +432,9 @@ dependencies {
   implementation(deps.android.androidx.fragment)
   implementation(deps.android.androidx.fragmentKtx)
   debugImplementation(deps.android.androidx.drawerLayout)
-  implementation(deps.android.androidx.palette)
-  implementation(deps.android.androidx.paletteKtx)
   implementation(deps.android.androidx.preference)
   implementation(deps.android.androidx.preferenceKtx)
-  implementation(deps.android.androidx.viewPager)
+  implementation(deps.android.androidx.viewPager2)
   implementation(deps.android.androidx.swipeRefresh)
   implementation(deps.android.androidx.legacyAnnotations)
 
@@ -419,6 +443,7 @@ dependencies {
   kapt(deps.android.androidx.lifecycle.apt)
   implementation(deps.android.androidx.room.runtime)
   implementation(deps.android.androidx.room.rxJava2)
+  implementation(deps.android.androidx.room.ktx)
   kapt(deps.android.androidx.room.apt)
 
   // Kotlin
@@ -426,6 +451,8 @@ dependencies {
   implementation(deps.kotlin.stdlib.jdk7)
   implementation(deps.kotlin.coroutines)
   implementation(deps.kotlin.coroutinesAndroid)
+  implementation(deps.kotlin.coroutinesRx)
+  implementation(deps.android.androidx.lifecycle.ktx)
 
   // Moshi
   kapt(deps.moshi.compiler)
@@ -433,9 +460,7 @@ dependencies {
 
   // Firebase
   implementation(deps.android.firebase.core)
-  implementation(deps.android.firebase.config)
   implementation(deps.android.firebase.database)
-  implementation(deps.android.firebase.perf)
 
   // Square/JW
   implementation(deps.okhttp.core)
@@ -443,12 +468,8 @@ dependencies {
   implementation(deps.retrofit.core)
   implementation(deps.retrofit.moshi)
   implementation(deps.retrofit.rxJava2)
-  implementation(deps.retrofit.coroutines)
   implementation(deps.rx.android)
   implementation(deps.rx.java)
-  implementation(deps.rx.binding.core)
-  implementation(deps.rx.binding.v4)
-  implementation(deps.rx.binding.design)
   implementation(deps.misc.lazythreeten)
   implementation(deps.misc.tapTargetView)
   implementation(deps.misc.timber)
@@ -471,10 +492,7 @@ dependencies {
   // Misc
   implementation(deps.autoDispose.core)
   implementation(deps.autoDispose.android)
-  implementation(deps.autoDispose.kotlin)
   implementation(deps.autoDispose.lifecycle)
-  implementation(deps.autoDispose.lifecycleKtx)
-  compileOnly(deps.errorProne.compileOnly.annotations)
   implementation(deps.misc.flick)
   implementation(deps.misc.gestureViews)
   implementation(deps.misc.inboxRecyclerView)
@@ -482,10 +500,12 @@ dependencies {
   implementation(deps.misc.recyclerViewAnimators)
   implementation(deps.rx.preferences)
   implementation(deps.rx.relay)
+  implementation(deps.rx.dogTag)
+  implementation(deps.rx.dogTagAutoDispose)
   implementation(deps.misc.moshiLazyAdapters)
-  implementation(deps.autoDispose.androidKtx)
   implementation(deps.autoDispose.androidArch)
-  implementation(deps.autoDispose.androidArchKtx)
+  implementation(deps.misc.kotpref)
+  implementation(deps.misc.kotprefEnum)
 
   // Apollo
   implementation(deps.apollo.androidSupport)
@@ -500,7 +520,9 @@ dependencies {
 
   // Flipper
   debugImplementation(deps.misc.debug.flipper)
-  debugImplementation(deps.misc.debug.guava) // To force a newer version that doesn't conflict ListenableFuture
+  debugImplementation(deps.misc.debug.soLoader)
+  debugImplementation(
+      deps.misc.debug.guava) // To force a newer version that doesn't conflict ListenableFuture
 
   // Hyperion
 //  releaseImplementation(deps.hyperion.core.release)
@@ -532,19 +554,17 @@ dependencies {
 
   // Test
   testImplementation(deps.rx.relay)
-  androidTestCompileOnly(deps.errorProne.compileOnly.annotations)
   androidTestImplementation(deps.rx.java)
   androidTestImplementation(deps.misc.jsr305)
   testImplementation(deps.misc.jsr305)
-  testCompileOnly(deps.errorProne.compileOnly.annotations)
   testImplementation(deps.test.junit)
   testImplementation(deps.test.truth)
 
   // LeakCanary
-  debugImplementation(deps.leakCanary.debug)
-  releaseImplementation(deps.leakCanary.release)
+  debugImplementation(deps.misc.leakCanary)
+  releaseImplementation(deps.misc.leakCanaryObjectWatcherAndroid)
 
   // Chuck
-  debugImplementation(deps.chuck.debug)
-  releaseImplementation(deps.chuck.release)
+//  debugImplementation(deps.chuck.debug)
+//  releaseImplementation(deps.chuck.release)
 }

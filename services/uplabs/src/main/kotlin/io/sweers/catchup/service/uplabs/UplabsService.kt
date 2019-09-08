@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2018 Zac Sweers
+ * Copyright (C) 2019. Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.sweers.catchup.service.uplabs
 
 import com.squareup.moshi.Moshi
@@ -24,11 +23,11 @@ import dagger.Provides
 import dagger.Reusable
 import dagger.multibindings.IntoMap
 import io.reactivex.Single
+import io.sweers.catchup.libraries.retrofitconverters.delegatingCallFactory
 import io.sweers.catchup.service.api.CatchUpItem
 import io.sweers.catchup.service.api.DataRequest
 import io.sweers.catchup.service.api.DataResult
 import io.sweers.catchup.service.api.ImageInfo
-import io.sweers.catchup.service.api.LinkHandler
 import io.sweers.catchup.service.api.Service
 import io.sweers.catchup.service.api.ServiceKey
 import io.sweers.catchup.service.api.ServiceMeta
@@ -51,10 +50,10 @@ private annotation class InternalApi
 private const val SERVICE_KEY = "uplabs"
 
 internal class UplabsService @Inject constructor(
-    @InternalApi private val serviceMeta: ServiceMeta,
-    private val api: UplabsApi,
-    private val linkHandler: LinkHandler)
-  : VisualService {
+  @InternalApi private val serviceMeta: ServiceMeta,
+  private val api: UplabsApi
+) :
+  VisualService {
 
   override fun meta() = serviceMeta
 
@@ -84,8 +83,6 @@ internal class UplabsService @Inject constructor(
         .toList()
         .map { DataResult(it, (page + 1).toString()) }
   }
-
-  override fun linkHandler() = linkHandler
 }
 
 @Meta
@@ -140,14 +137,16 @@ abstract class UplabsModule {
 
     @Provides
     @JvmStatic
-    internal fun provideUplabsService(client: Lazy<OkHttpClient>,
-        @InternalApi moshi: Moshi,
-        rxJavaCallAdapterFactory: RxJava2CallAdapterFactory): UplabsApi {
+    internal fun provideUplabsService(
+      client: Lazy<OkHttpClient>,
+      @InternalApi moshi: Moshi,
+      rxJavaCallAdapterFactory: RxJava2CallAdapterFactory
+    ): UplabsApi {
       return Retrofit.Builder().baseUrl(UplabsApi.ENDPOINT)
-          .callFactory { client.get().newCall(it) }
+          .delegatingCallFactory(client)
           .addCallAdapterFactory(rxJavaCallAdapterFactory)
           .addConverterFactory(MoshiConverterFactory.create(moshi))
-          .validateEagerly(BuildConfig.DEBUG)
+          // .validateEagerly(BuildConfig.DEBUG) // Enable with cross-module debug build configs
           .build()
           .create(UplabsApi::class.java)
     }

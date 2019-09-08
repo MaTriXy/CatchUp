@@ -29,7 +29,6 @@ apply {
 
 android {
   compileSdkVersion(deps.android.build.compileSdkVersion)
-  buildToolsVersion(deps.android.build.buildToolsVersion)
 
   defaultConfig {
     minSdkVersion(deps.android.build.minSdkVersion)
@@ -41,18 +40,13 @@ android {
     targetCompatibility = JavaVersion.VERSION_1_8
   }
   lintOptions {
-    setLintConfig(file("lint.xml"))
-    isAbortOnError = true
-    check("InlinedApi")
-    check("NewApi")
-    fatal("NewApi")
-    fatal("InlinedApi")
-    enable("UnusedResources")
-    isCheckReleaseBuilds = true
-    textReport = deps.build.ci
-    textOutput("stdout")
-    htmlReport = !deps.build.ci
-    xmlReport = !deps.build.ci
+    isCheckReleaseBuilds = false
+    isAbortOnError = false
+  }
+  libraryVariants.all {
+    generateBuildConfigProvider?.configure {
+      enabled = false
+    }
   }
 }
 
@@ -63,15 +57,18 @@ noArg {
 tasks.withType<KotlinCompile> {
   kotlinOptions {
     freeCompilerArgs = build.standardFreeKotlinCompilerArgs
+    jvmTarget = "1.8"
   }
 }
 
 kapt {
   correctErrorTypes = true
-  useBuildCache = true
   mapDiagnosticLocations = true
-  arguments {
-    arg("dagger.formatGeneratedSource", "disabled")
+
+  // Compiling with JDK 11+, but kapt doesn't forward source/target versions.
+  javacOptions {
+    option("-source", "8")
+    option("-target", "8")
   }
 }
 
@@ -82,9 +79,16 @@ dependencies {
   kapt(project(":service-registry:service-registry-compiler"))
   kapt(deps.crumb.compiler)
   kapt(deps.dagger.apt.compiler)
+  kapt(deps.assistedInject.processor)
+  compileOnly(deps.assistedInject.annotations)
 
+  implementation(deps.android.androidx.viewModel.core)
+  implementation(deps.android.androidx.viewModel.ktx)
+  implementation(deps.android.androidx.viewModel.savedState)
   implementation(deps.android.firebase.database)
 
+  api(deps.android.androidx.design)
+  api(deps.android.androidx.fragmentKtx)
   api(deps.android.androidx.annotations)
   api(deps.dagger.runtime)
   api(deps.misc.lazythreeten)

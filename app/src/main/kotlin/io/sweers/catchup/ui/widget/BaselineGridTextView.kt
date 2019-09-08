@@ -1,11 +1,11 @@
 /*
- * Copyright 2015 Google Inc.
+ * Copyright (C) 2019. Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.sweers.catchup.ui.widget
 
 import android.content.Context
@@ -24,7 +23,9 @@ import androidx.annotation.FontRes
 import androidx.appcompat.widget.AppCompatTextView
 import androidx.core.content.res.use
 import io.sweers.catchup.R
-
+import kotlin.math.abs
+import kotlin.math.ceil
+import kotlin.math.floor
 
 /**
  * An extension to [AppCompatTextView] which aligns text to a 4dp baseline grid.
@@ -38,9 +39,11 @@ import io.sweers.catchup.R
  * the grid (relative to the view's top) & that this view's height is a multiple of 4dp so that
  * subsequent views start on the grid.
  */
-class BaselineGridTextView @JvmOverloads constructor(context: Context,
-    attrs: AttributeSet? = null,
-    defStyleAttr: Int = android.R.attr.textViewStyle) : AppCompatTextView(context, attrs,
+class BaselineGridTextView @JvmOverloads constructor(
+  context: Context,
+  attrs: AttributeSet? = null,
+  defStyleAttr: Int = android.R.attr.textViewStyle
+) : AppCompatTextView(context, attrs,
     defStyleAttr) {
 
   private val FOUR_DIP: Float
@@ -131,14 +134,13 @@ class BaselineGridTextView @JvmOverloads constructor(context: Context,
    */
   private fun computeLineHeight() {
     val fm = paint.fontMetrics
-    val fontHeight = Math.abs(fm.ascent - fm.descent) + fm.leading
+    val fontHeight = abs(fm.ascent - fm.descent) + fm.leading
     val desiredLineHeight = if (lineHeightHint > 0)
       lineHeightHint
     else
       lineHeightMultiplierHint * fontHeight
 
-    val baselineAlignedLineHeight = (FOUR_DIP * Math.ceil(
-        (desiredLineHeight / FOUR_DIP).toDouble()).toFloat() + 0.5f).toInt()
+    val baselineAlignedLineHeight = (FOUR_DIP * ceil((desiredLineHeight / FOUR_DIP).toDouble()).toFloat() + 0.5f).toInt()
     setLineSpacing(baselineAlignedLineHeight - fontHeight, 1f)
   }
 
@@ -149,7 +151,7 @@ class BaselineGridTextView @JvmOverloads constructor(context: Context,
     val baseline = baseline.toFloat()
     val gridAlign = baseline % FOUR_DIP
     if (gridAlign != 0f) {
-      extraTopPadding = (FOUR_DIP - Math.ceil(gridAlign.toDouble())).toInt()
+      extraTopPadding = (FOUR_DIP - ceil(gridAlign.toDouble())).toInt()
     }
     return extraTopPadding
   }
@@ -160,7 +162,7 @@ class BaselineGridTextView @JvmOverloads constructor(context: Context,
   private fun ensureHeightGridAligned(height: Int): Int {
     val gridOverhang = height % FOUR_DIP
     if (gridOverhang != 0f) {
-      extraBottomPadding = (FOUR_DIP - Math.ceil(gridOverhang.toDouble())).toInt()
+      extraBottomPadding = (FOUR_DIP - ceil(gridOverhang.toDouble())).toInt()
     }
     return extraBottomPadding
   }
@@ -173,7 +175,7 @@ class BaselineGridTextView @JvmOverloads constructor(context: Context,
     if (!maxLinesByHeight || heightMode != MeasureSpec.EXACTLY) return
 
     val textHeight = height - compoundPaddingTop - compoundPaddingBottom
-    val completeLines = Math.floor((textHeight / lineHeight).toDouble()).toInt()
+    val completeLines = floor((textHeight / lineHeight).toDouble()).toInt()
     maxLines = completeLines
   }
 }

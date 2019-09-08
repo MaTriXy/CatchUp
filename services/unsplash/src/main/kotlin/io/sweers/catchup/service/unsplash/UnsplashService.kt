@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2018 Zac Sweers
+ * Copyright (C) 2019. Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.sweers.catchup.service.unsplash
 
 import com.squareup.moshi.Moshi
@@ -24,11 +23,11 @@ import dagger.Provides
 import dagger.Reusable
 import dagger.multibindings.IntoMap
 import io.reactivex.Single
+import io.sweers.catchup.libraries.retrofitconverters.delegatingCallFactory
 import io.sweers.catchup.service.api.CatchUpItem
 import io.sweers.catchup.service.api.DataRequest
 import io.sweers.catchup.service.api.DataResult
 import io.sweers.catchup.service.api.ImageInfo
-import io.sweers.catchup.service.api.LinkHandler
 import io.sweers.catchup.service.api.Service
 import io.sweers.catchup.service.api.ServiceKey
 import io.sweers.catchup.service.api.ServiceMeta
@@ -53,10 +52,10 @@ private annotation class InternalApi
 private const val SERVICE_KEY = "unsplash"
 
 internal class UnsplashService @Inject constructor(
-    @InternalApi private val serviceMeta: ServiceMeta,
-    private val api: UnsplashApi,
-    private val linkHandler: LinkHandler)
-  : VisualService {
+  @InternalApi private val serviceMeta: ServiceMeta,
+  private val api: UnsplashApi
+) :
+  VisualService {
 
   override fun meta() = serviceMeta
 
@@ -77,7 +76,7 @@ internal class UnsplashService @Inject constructor(
               tag = null,
               itemClickUrl = it.urls.full,
               imageInfo = ImageInfo(
-                  url = it.urls.full,
+                  url = it.urls.small,
                   animatable = false,
                   sourceUrl = it.links.html,
                   bestSize = null,
@@ -88,8 +87,6 @@ internal class UnsplashService @Inject constructor(
         .toList()
         .map { DataResult(it, (page + 1).toString()) }
   }
-
-  override fun linkHandler() = linkHandler
 
   override fun spanConfig() = SpanConfig(3) {
     /* emulating https://material-design.storage.googleapis.com/publish/material_v_4/material_ext_publish/0B6Okdz75tqQsck9lUkgxNVZza1U/style_imagery_integration_scale1.png */
@@ -170,14 +167,16 @@ abstract class UnsplashModule {
 
     @Provides
     @JvmStatic
-    internal fun provideUnsplashService(@InternalApi client: Lazy<OkHttpClient>,
-        @InternalApi moshi: Moshi,
-        rxJavaCallAdapterFactory: RxJava2CallAdapterFactory): UnsplashApi {
+    internal fun provideUnsplashService(
+      @InternalApi client: Lazy<OkHttpClient>,
+      @InternalApi moshi: Moshi,
+      rxJavaCallAdapterFactory: RxJava2CallAdapterFactory
+    ): UnsplashApi {
       return Retrofit.Builder().baseUrl(UnsplashApi.ENDPOINT)
-          .callFactory { client.get().newCall(it) }
+          .delegatingCallFactory(client)
           .addCallAdapterFactory(rxJavaCallAdapterFactory)
           .addConverterFactory(MoshiConverterFactory.create(moshi))
-          .validateEagerly(BuildConfig.DEBUG)
+          // .validateEagerly(BuildConfig.DEBUG) // Enable with cross-module debug build configs
           .build()
           .create(UnsplashApi::class.java)
     }

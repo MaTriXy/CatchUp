@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2018 Zac Sweers
+ * Copyright (C) 2019. Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.sweers.catchup.ui.logs
 
 import android.content.Context
@@ -27,7 +26,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.annotation.DrawableRes
-import io.reactivex.functions.Consumer
 import io.sweers.catchup.R
 import io.sweers.catchup.data.LumberYard.Entry
 import io.sweers.catchup.ui.BindableAdapter
@@ -35,15 +33,14 @@ import kotterknife.ViewDelegateBindable
 import kotterknife.bindView
 import java.util.ArrayList
 
-internal class LogAdapter(context: Context) : BindableAdapter<Entry>(context), Consumer<Entry> {
+internal class LogAdapter(context: Context) : BindableAdapter<Entry>(context) {
   private var logs = mutableListOf<Entry>()
 
   fun setLogs(logs: List<Entry>) {
     this.logs = ArrayList(logs)
   }
 
-  @Throws(Exception::class)
-  override fun accept(entry: Entry) {
+  fun addEntry(entry: Entry) {
     logs.add(entry)
     notifyDataSetChanged()
   }

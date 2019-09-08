@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import org.gradle.api.JavaVersion.VERSION_1_8
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
@@ -35,7 +34,6 @@ tasks.withType<KotlinCompile> {
 
 kapt {
   correctErrorTypes = true
-  useBuildCache = true
   mapDiagnosticLocations = true
 }
 
@@ -43,12 +41,12 @@ dependencies {
   kapt(deps.auto.service)
   compileOnly(deps.auto.service)
 
-  compile(project(":service-registry:service-registry-annotations"))
-  compile(deps.auto.common)
-  compile(deps.crumb.annotations)
-  compile(deps.crumb.compilerApi)
-  compile(deps.dagger.runtime)
-  compile(deps.kotlin.metadata)
-  compile(deps.kotlin.poet)
-  compile(deps.kotlin.stdlib.jdk8)
+  implementation(project(":service-registry:service-registry-annotations"))
+  implementation(deps.auto.common)
+  implementation(deps.crumb.annotations)
+  implementation(deps.crumb.compilerApi)
+  implementation(deps.dagger.runtime)
+  implementation(deps.kotlin.metadata)
+  implementation(deps.kotlin.poet)
+  implementation(deps.kotlin.stdlib.jdk8)
 }

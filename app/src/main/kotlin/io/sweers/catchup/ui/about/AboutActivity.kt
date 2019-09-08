@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2018 Zac Sweers
+ * Copyright (C) 2019. Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,16 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.sweers.catchup.ui.about
 
-import `in`.uncod.android.bypass.Bypass
 import android.annotation.SuppressLint
-import android.app.Activity
 import android.graphics.Typeface
 import android.os.Bundle
 import android.os.Parcelable
 import android.text.style.StyleSpan
+import android.util.SparseArray
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -35,44 +33,50 @@ import androidx.appcompat.widget.Toolbar
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.text.layoutDirection
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.FragmentStatePagerAdapter
-import androidx.fragment.app.transaction
-import androidx.viewpager.widget.ViewPager
+import androidx.fragment.app.commitNow
+import androidx.lifecycle.lifecycleScope
+import androidx.viewpager2.adapter.FragmentStateAdapter
+import androidx.viewpager2.widget.ViewPager2
 import com.google.android.material.appbar.AppBarLayout
 import com.google.android.material.appbar.CollapsingToolbarLayout
 import com.google.android.material.tabs.TabLayout
-import com.jakewharton.rxbinding2.support.design.widget.RxAppBarLayout
+import com.google.android.material.tabs.TabLayoutMediator
 import com.uber.autodispose.autoDisposable
-import dagger.Binds
 import dagger.Module
 import dagger.android.ContributesAndroidInjector
+import io.noties.markwon.Markwon
 import io.sweers.catchup.BuildConfig
 import io.sweers.catchup.R
+import io.sweers.catchup.base.ui.InjectingBaseActivity
+import io.sweers.catchup.base.ui.InjectingBaseFragment
 import io.sweers.catchup.data.LinkManager
-import io.sweers.catchup.injection.scopes.PerActivity
+import io.sweers.catchup.injection.ActivityModule
 import io.sweers.catchup.injection.scopes.PerFragment
 import io.sweers.catchup.service.api.UrlMeta
 import io.sweers.catchup.ui.Scrollable
-import io.sweers.catchup.ui.base.InjectingBaseActivity
-import io.sweers.catchup.ui.base.InjectingBaseFragment
 import io.sweers.catchup.util.LinkTouchMovementMethod
 import io.sweers.catchup.util.TouchableUrlSpan
 import io.sweers.catchup.util.UiUtil
 import io.sweers.catchup.util.buildMarkdown
 import io.sweers.catchup.util.customtabs.CustomTabActivityHelper
 import io.sweers.catchup.util.isInNightMode
+import io.sweers.catchup.util.kotlin.windowed
 import io.sweers.catchup.util.parseMarkdownAndPlainLinks
 import io.sweers.catchup.util.setLightStatusBar
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotterknife.bindView
+import ru.ldralighieri.corbind.material.offsetChanges
 import java.util.Locale
 import javax.inject.Inject
+import kotlin.math.abs
 
 class AboutActivity : InjectingBaseActivity() {
 
   @Inject
   internal lateinit var customTab: CustomTabActivityHelper
-  @Inject
-  internal lateinit var linkManager: LinkManager
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
@@ -104,20 +108,14 @@ class AboutActivity : InjectingBaseActivity() {
     layoutInflater.inflate(R.layout.activity_generic_container, viewGroup)
 
     if (savedInstanceState == null) {
-      supportFragmentManager.transaction {
+      supportFragmentManager.commitNow {
         add(R.id.fragment_container, AboutFragment())
       }
     }
   }
 
   @dagger.Module
-  abstract class Module {
-
-    @Binds
-    @PerActivity
-    abstract fun provideActivity(activity: AboutActivity): Activity
-
-  }
+  abstract class Module : ActivityModule<AboutActivity>
 }
 
 class AboutFragment : InjectingBaseFragment() {
@@ -130,7 +128,7 @@ class AboutFragment : InjectingBaseFragment() {
   @Inject
   internal lateinit var linkManager: LinkManager
   @Inject
-  internal lateinit var bypass: Bypass
+  internal lateinit var markwon: Markwon
 
   private val rootLayout by bindView<CoordinatorLayout>(R.id.about_fragment_root)
   private val appBarLayout by bindView<AppBarLayout>(R.id.appbarlayout)
@@ -140,14 +138,17 @@ class AboutFragment : InjectingBaseFragment() {
   private val title by bindView<TextView>(R.id.banner_title)
   private val tabLayout by bindView<TabLayout>(R.id.tab_layout)
   private val toolbar by bindView<Toolbar>(R.id.toolbar)
-  private val viewPager by bindView<ViewPager>(R.id.view_pager)
+  private val viewPager by bindView<ViewPager2>(R.id.view_pager) {
+    it.offscreenPageLimit = 1
+  }
 
   private lateinit var compositeClickSpan: (String) -> Set<Any>
-  private lateinit var pagerAdapter: FragmentStatePagerAdapter
 
-  override fun inflateView(inflater: LayoutInflater,
-      container: ViewGroup?,
-      savedInstanceState: Bundle?): View =
+  override fun inflateView(
+    inflater: LayoutInflater,
+    container: ViewGroup?,
+    savedInstanceState: Bundle?
+  ): View =
       inflater.inflate(R.layout.fragment_about, container, false)
 
   override fun onSaveInstanceState(outState: Bundle) {
@@ -155,32 +156,32 @@ class AboutFragment : InjectingBaseFragment() {
       outState.putParcelable("collapsingToolbarState",
           behavior.onSaveInstanceState(rootLayout, appBarLayout))
     }
-    outState.putParcelable("aboutPager", viewPager.onSaveInstanceState())
-    outState.putParcelable("aboutAdapter", pagerAdapter.saveState())
+    outState.putParcelable("aboutAdapter", (viewPager.adapter as FragmentStateAdapter).saveState())
     super.onSaveInstanceState(outState)
   }
 
   @SuppressLint("SetTextI18n")
   override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
     super.onViewCreated(view, savedInstanceState)
-    pagerAdapter = object : FragmentStatePagerAdapter(childFragmentManager) {
-      private val screens = mutableMapOf<Int, Fragment>()
+    val pagerAdapter = object : FragmentStateAdapter(childFragmentManager, lifecycle) {
+      private val screens = SparseArray<Fragment>()
 
-      override fun getItem(position: Int): Fragment {
-        return screens.getOrPut(position) {
+      override fun getItemCount(): Int = 2
+
+      override fun createFragment(position: Int): Fragment {
+        return screens.get(position) ?: run {
           when (position) {
             0 -> LicensesFragment()
             1 -> ChangelogFragment()
             else -> TODO("Not implemented")
+          }.also {
+            screens.put(position, it)
           }
         }
       }
 
-      override fun getCount() = 2
-
-      override fun getPageTitle(position: Int): String = when (position) {
-        0 -> resources.getString(R.string.licenses)
-        else -> resources.getString(R.string.changelog)
+      fun getFragment(position: Int): Fragment? {
+        return screens.get(position)
       }
     }
 
@@ -188,9 +189,11 @@ class AboutFragment : InjectingBaseFragment() {
       setOf(
           object : TouchableUrlSpan(url, aboutText.linkTextColors, 0) {
             override fun onClick(url: String) {
-              linkManager.openUrl(
-                  UrlMeta(url, aboutText.highlightColor,
-                      activity!!))
+              viewLifecycleOwner.lifecycleScope.launch {
+                linkManager.openUrl(
+                    UrlMeta(url, aboutText.highlightColor,
+                        activity!!))
+              }
             }
           },
           StyleSpan(Typeface.BOLD)
@@ -202,14 +205,12 @@ class AboutFragment : InjectingBaseFragment() {
         (appBarLayout.layoutParams as CoordinatorLayout.LayoutParams).behavior
             ?.onRestoreInstanceState(rootLayout, appBarLayout, it)
       }
-      state.getParcelable<Parcelable>("aboutPager")?.let(viewPager::onRestoreInstanceState)
       state.getParcelable<Parcelable>("aboutAdapter")?.let {
-        pagerAdapter.restoreState(it, state.classLoader)
+        pagerAdapter.restoreState(it)
       }
     }
 
-    with(activity as AppCompatActivity)
-    {
+    with(activity as AppCompatActivity) {
       if (!isInNightMode()) {
         toolbar.setLightStatusBar()
       }
@@ -225,8 +226,10 @@ class AboutFragment : InjectingBaseFragment() {
     }
     bannerIcon.setOnLongClickListener {
       Toast.makeText(activity, R.string.icon_attribution, Toast.LENGTH_SHORT).show()
-      linkManager.openUrl(
-          UrlMeta("https://cookicons.co", aboutText.highlightColor, activity!!))
+      viewLifecycleOwner.lifecycleScope.launch {
+        linkManager.openUrl(
+            UrlMeta("https://cookicons.co", aboutText.highlightColor, activity!!))
+      }
       true
     }
 
@@ -238,16 +241,38 @@ class AboutFragment : InjectingBaseFragment() {
       newline(2)
       text(aboutText.resources.getString(R.string.about_by))
       space()
-      link("https://twitter.com/pandanomic", "Zac Sweers")
+      link("https://twitter.com/ZacSweers", "Zac Sweers")
       text(" - ")
-      link("https://github.com/hzsweers/CatchUp",
+      link("https://github.com/ZacSweers/CatchUp",
           aboutText.resources.getString(R.string.about_source_code))
     }.parseMarkdownAndPlainLinks(
         on = aboutText,
-        with = bypass,
+        with = markwon,
         alternateSpans = compositeClickSpan)
 
-    setUpPager()
+    // Set up pager
+    viewPager.adapter = pagerAdapter
+    TabLayoutMediator(tabLayout, viewPager) { tab, position ->
+      viewPager.setCurrentItem(tab.position, true)
+      tab.text = when (position) {
+        0 -> resources.getString(R.string.licenses)
+        else -> resources.getString(R.string.changelog)
+      }
+    }.attach()
+
+    tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
+      override fun onTabSelected(tab: TabLayout.Tab) {}
+
+      override fun onTabUnselected(tab: TabLayout.Tab) {}
+
+      override fun onTabReselected(tab: TabLayout.Tab) {
+        pagerAdapter.getFragment(tab.position).let {
+          if (it is Scrollable) {
+            it.onRequestScrollToTop()
+          }
+        }
+      }
+    })
 
     // Wait till things are measured
     val callSetUpHeader = { setUpHeader() }
@@ -256,25 +281,6 @@ class AboutFragment : InjectingBaseFragment() {
     } else {
       callSetUpHeader()
     }
-  }
-
-  private fun setUpPager() {
-    viewPager.adapter = pagerAdapter
-    tabLayout.setupWithViewPager(viewPager, false)
-
-    tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
-      override fun onTabSelected(tab: TabLayout.Tab) {}
-
-      override fun onTabUnselected(tab: TabLayout.Tab) {}
-
-      override fun onTabReselected(tab: TabLayout.Tab) {
-        pagerAdapter.getItem(tab.position).let {
-          if (it is Scrollable) {
-            it.onRequestScrollToTop()
-          }
-        }
-      }
-    })
   }
 
   @SuppressLint("CheckResult")
@@ -310,9 +316,10 @@ class AboutFragment : InjectingBaseFragment() {
     @Px val predictedFinalY = titleY - (translatableHeight * parallaxMultiplier)
     @Px val yDelta = desiredTitleY - predictedFinalY
 
-    /*
+    viewLifecycleOwner.lifecycleScope.launch {
+      /*
      * Here we want to get the appbar offset changes paired with the direction it's moving and
-     * using RxBinding's great `offsetChanges` API to make an rx Observable of this. The first
+     * using `offsetChanges` API to make an rx Observable of this. The first
      * part buffers two while skipping one at a time and emits "scroll direction" enums. Second
      * part is just a simple map to pair the offset with the resolved scroll direction comparing
      * to the previous offset. This gives us a nice stream of (offset, direction) emissions.
@@ -322,46 +329,47 @@ class AboutFragment : InjectingBaseFragment() {
      * same value as before, potentially causing measure/layout/draw thrashing if your logic
      * reacting to the offset changes *is* manipulating those child views (vicious cycle).
      */
-    RxAppBarLayout.offsetChanges(appBarLayout)
-        .buffer(2, 1) // Buffer in pairs to compare the previous, skip none
-        .filter { it[1] != it[0] }
-        .map {
-          // Map to a direction
-          it[1] to ScrollDirection.resolve(it[1], it[0])
-        }
-        .subscribe { (offset, _) ->
-          // Note: Direction is unused for now but left because this was neat
-          val percentage = Math.abs(offset).toFloat() / translatableHeight
+      appBarLayout.offsetChanges()
+          .windowed(2, 1) // Buffer in pairs to compare the previous, skip none
+          .filter { it[1] != it[0] }
+          .map {
+            // Map to a direction
+            it[1] to ScrollDirection.resolve(it[1], it[0])
+          }
+          .collect { (offset, _) ->
+            // Note: Direction is unused for now but left because this was neat
+            val percentage = abs(offset).toFloat() / translatableHeight
 
-          // Force versions outside boundaries to be safe
-          if (percentage > FADE_PERCENT) {
-            bannerIcon.alpha = 0F
-            aboutText.alpha = 0F
+            // Force versions outside boundaries to be safe
+            if (percentage > FADE_PERCENT) {
+              bannerIcon.alpha = 0F
+              aboutText.alpha = 0F
+            }
+            if (percentage < TITLE_TRANSLATION_PERCENT) {
+              title.translationX = 0F
+              title.translationY = 0F
+            }
+            if (percentage < FADE_PERCENT) {
+              // We want to accelerate fading to be the first [FADE_PERCENT]% of the translation,
+              // so adjust accordingly below and use the new calculated percentage for our
+              // interpolation
+              val adjustedPercentage = 1 - (percentage * (1.0F / FADE_PERCENT))
+              val interpolation = interpolator.getInterpolation(adjustedPercentage)
+              bannerIcon.alpha = interpolation
+              aboutText.alpha = interpolation
+            }
+            if (percentage > TITLE_TRANSLATION_PERCENT) {
+              // Start translating about halfway through (to give a staggered effect next to the alpha
+              // so they have time to fade out sufficiently). From here we just set translation offsets
+              // to adjust the position naturally to give the appearance of settling in to the right
+              // place.
+              val adjustedPercentage = (1 - percentage) * (1.0F / TITLE_TRANSLATION_PERCENT)
+              val interpolation = interpolator.getInterpolation(adjustedPercentage)
+              title.translationX = -(xDelta - (interpolation * xDelta))
+              title.translationY = yDelta - (interpolation * yDelta)
+            }
           }
-          if (percentage < TITLE_TRANSLATION_PERCENT) {
-            title.translationX = 0F
-            title.translationY = 0F
-          }
-          if (percentage < FADE_PERCENT) {
-            // We want to accelerate fading to be the first [FADE_PERCENT]% of the translation,
-            // so adjust accordingly below and use the new calculated percentage for our
-            // interpolation
-            val adjustedPercentage = 1 - (percentage * (1.0F / FADE_PERCENT))
-            val interpolation = interpolator.getInterpolation(adjustedPercentage)
-            bannerIcon.alpha = interpolation
-            aboutText.alpha = interpolation
-          }
-          if (percentage > TITLE_TRANSLATION_PERCENT) {
-            // Start translating about halfway through (to give a staggered effect next to the alpha
-            // so they have time to fade out sufficiently). From here we just set translation offsets
-            // to adjust the position naturally to give the appearance of settling in to the right
-            // place.
-            val adjustedPercentage = (1 - percentage) * (1.0F / TITLE_TRANSLATION_PERCENT)
-            val interpolation = interpolator.getInterpolation(adjustedPercentage)
-            title.translationX = -(xDelta - (interpolation * xDelta))
-            title.translationY = yDelta - (interpolation * yDelta)
-          }
-        }
+    }
   }
 }
 
@@ -373,7 +381,7 @@ abstract class AboutFragmentBindingModule {
   internal abstract fun aboutFragment(): AboutFragment
 
   @PerFragment
-  @ContributesAndroidInjector(modules = [LicensesModule::class])
+  @ContributesAndroidInjector
   internal abstract fun licensesFragment(): LicensesFragment
 
   @PerFragment

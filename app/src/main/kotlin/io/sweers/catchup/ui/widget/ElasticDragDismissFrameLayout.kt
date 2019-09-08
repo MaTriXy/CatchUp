@@ -1,11 +1,11 @@
 /*
- * Copyright 2015 Google Inc.
+ * Copyright (C) 2019. Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.sweers.catchup.ui.widget
 
 import android.app.Activity
@@ -25,19 +24,24 @@ import android.widget.FrameLayout
 import androidx.core.content.res.use
 import androidx.interpolator.view.animation.FastOutSlowInInterpolator
 import io.sweers.catchup.R
-import io.sweers.catchup.util.ColorUtils
+import io.sweers.catchup.base.ui.ColorUtils
 import io.sweers.catchup.util.isNavBarOnBottom
 import java.util.ArrayList
+import kotlin.math.abs
+import kotlin.math.log10
+import kotlin.math.min
 
 /**
  * A [FrameLayout] which responds to nested scrolls to create drag-dismissable layouts.
  * Applies an elasticity factor to reduce movement as you approach the given dismiss distance.
  * Optionally also scales down content during drag.
  */
-class ElasticDragDismissFrameLayout @JvmOverloads constructor(context: Context,
-    attrs: AttributeSet? = null,
-    defStyleAttr: Int = 0,
-    defStyleRes: Int = 0) : FrameLayout(context, attrs, defStyleAttr, defStyleRes) {
+class ElasticDragDismissFrameLayout @JvmOverloads constructor(
+  context: Context,
+  attrs: AttributeSet? = null,
+  defStyleAttr: Int = 0,
+  defStyleRes: Int = 0
+) : FrameLayout(context, attrs, defStyleAttr, defStyleRes) {
 
   // configurable attribs
   private var dragDismissDistance = java.lang.Float.MAX_VALUE
@@ -90,10 +94,12 @@ class ElasticDragDismissFrameLayout @JvmOverloads constructor(context: Context,
      * dismiss distance has been reached.
      * @param rawOffsetPixels The raw distance the user has dragged
      */
-    open fun onDrag(elasticOffset: Float,
-        elasticOffsetPixels: Float,
-        rawOffset: Float,
-        rawOffsetPixels: Float) {
+    open fun onDrag(
+      elasticOffset: Float,
+      elasticOffsetPixels: Float,
+      rawOffset: Float,
+      rawOffsetPixels: Float
+    ) {
     }
 
     /**
@@ -114,16 +120,18 @@ class ElasticDragDismissFrameLayout @JvmOverloads constructor(context: Context,
     }
   }
 
-  override fun onNestedScroll(target: View,
-      dxConsumed: Int,
-      dyConsumed: Int,
-      dxUnconsumed: Int,
-      dyUnconsumed: Int) {
+  override fun onNestedScroll(
+    target: View,
+    dxConsumed: Int,
+    dyConsumed: Int,
+    dxUnconsumed: Int,
+    dyUnconsumed: Int
+  ) {
     dragScale(dyUnconsumed)
   }
 
   override fun onStopNestedScroll(child: View) {
-    if (Math.abs(totalDrag) >= dragDismissDistance) {
+    if (abs(totalDrag) >= dragDismissDistance) {
       dispatchDismissCallback()
     } else { // settle back to natural position
       animate().translationY(0f)
@@ -177,8 +185,7 @@ class ElasticDragDismissFrameLayout @JvmOverloads constructor(context: Context,
     }
     // how far have we dragged relative to the distance to perform a dismiss
     // (0–1 where 1 = dismiss distance). Decreasing logarithmically as we approach the limit
-    var dragFraction = Math.log10(
-        (1 + Math.abs(totalDrag) / dragDismissDistance).toDouble()).toFloat()
+    var dragFraction = log10((1 + abs(totalDrag) / dragDismissDistance).toDouble()).toFloat()
 
     // calculate the desired translation given the drag fraction
     var dragTo = dragFraction * dragDismissDistance * dragElacticity
@@ -210,14 +217,16 @@ class ElasticDragDismissFrameLayout @JvmOverloads constructor(context: Context,
     }
     dispatchDragCallback(dragFraction,
         dragTo,
-        Math.min(1f, Math.abs(totalDrag) / dragDismissDistance),
+        min(1f, abs(totalDrag) / dragDismissDistance),
         totalDrag)
   }
 
-  private fun dispatchDragCallback(elasticOffset: Float,
-      elasticOffsetPixels: Float,
-      rawOffset: Float,
-      rawOffsetPixels: Float) {
+  private fun dispatchDragCallback(
+    elasticOffset: Float,
+    elasticOffsetPixels: Float,
+    rawOffset: Float,
+    rawOffsetPixels: Float
+  ) {
     if (callbacks != null && !callbacks!!.isEmpty()) {
       for (callback in callbacks!!) {
         callback.onDrag(elasticOffset, elasticOffsetPixels, rawOffset, rawOffsetPixels)
@@ -243,10 +252,12 @@ class ElasticDragDismissFrameLayout @JvmOverloads constructor(context: Context,
     private val navBarAlpha: Int = Color.alpha(activity.window.navigationBarColor)
     private val fadeNavBar: Boolean = activity.isNavBarOnBottom()
 
-    override fun onDrag(elasticOffset: Float,
-        elasticOffsetPixels: Float,
-        rawOffset: Float,
-        rawOffsetPixels: Float) {
+    override fun onDrag(
+      elasticOffset: Float,
+      elasticOffsetPixels: Float,
+      rawOffset: Float,
+      rawOffsetPixels: Float
+    ) {
       when {
         elasticOffsetPixels > 0 -> // dragging downward, fade the status bar in proportion
           activity.window.statusBarColor = ColorUtils.modifyAlpha(activity.window

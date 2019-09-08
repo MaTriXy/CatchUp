@@ -19,5 +19,6 @@ plugins {
 }
 
 dependencies {
-  compile(deps.crumb.annotations)
+  api(deps.crumb.annotations)
+  api(deps.kotlin.stdlib.core)
 }

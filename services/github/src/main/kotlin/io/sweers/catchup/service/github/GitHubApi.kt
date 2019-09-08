@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2018 Zac Sweers
+ * Copyright (C) 2019. Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.sweers.catchup.service.github
 
 import io.reactivex.Single
@@ -28,29 +27,30 @@ import java.util.Locale
  */
 internal interface GitHubApi {
 
-  @GET("/trending/{$LANGUAGE}")
+  @GET("/trending{$LANGUAGE}")
   fun getTrending(
-      @Path(LANGUAGE) language: Language,
-      @Query("since") since: Since): Single<List<TrendingItem>>
+    @Path(LANGUAGE) language: Language,
+    @Query("since") since: Since
+  ): Single<List<TrendingItem>>
 
   enum class Since {
     DAILY, WEEKLY, MONTHLY;
 
     override fun toString(): String {
-      return super.toString().toLowerCase()
+      return super.toString().toLowerCase(Locale.US)
     }
   }
 
   sealed class Language {
     object All : Language() {
       override fun toString(): String {
-        return "all"
+        return ""
       }
     }
 
     data class Custom(val name: String) : Language() {
       override fun toString(): String {
-        return name.toLowerCase(Locale.US)
+        return "/${name.toLowerCase(Locale.US)}"
       }
     }
   }
@@ -61,5 +61,4 @@ internal interface GitHubApi {
     const val HOST = "github.com"
     const val ENDPOINT = "https://$HOST"
   }
-
 }

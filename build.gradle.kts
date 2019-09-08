@@ -14,10 +14,7 @@
  * limitations under the License.
  */
 
-import deps
 import deps.versions
-import org.gradle.initialization.StartParameterBuildOptions.BuildScanOption
-import org.gradle.internal.scan.config.BuildScanConfig
 
 buildscript {
   repositories {
@@ -30,38 +27,27 @@ buildscript {
     maven { url = uri(deps.build.repositories.snapshots) }
   }
 
-  configurations.all {
-    resolutionStrategy {
-      force("net.sf.proguard:proguard-base:6.1.0beta1")
-    }
-  }
-
   dependencies {
-    classpath("com.android.tools.build.jetifier:jetifier-processor:1.0.0-beta02") // https://issuetracker.google.com/issues/115738511
     classpath(deps.android.gradlePlugin)
     classpath(deps.kotlin.gradlePlugin)
     classpath(deps.kotlin.noArgGradlePlugin)
     classpath(deps.android.firebase.gradlePlugin)
     classpath(deps.build.gradlePlugins.bugsnag)
-    classpath(deps.build.gradlePlugins.psync)
     classpath(deps.apollo.gradlePlugin)
     classpath(deps.build.gradlePlugins.playPublisher)
+    classpath(deps.build.gradlePlugins.spotless)
   }
 }
 
 plugins {
-  id("com.gradle.build-scan") version "1.16"
-  id("com.github.ben-manes.versions") version "0.20.0"
+  id("com.gradle.build-scan") version "2.4.1"
+  id("com.github.ben-manes.versions") version "0.24.0"
 }
 
 buildScan {
-  setTermsOfServiceAgree("yes")
-  setTermsOfServiceUrl("https://gradle.com/terms-of-service")
+  termsOfServiceAgree = "yes"
+  termsOfServiceUrl = "https://gradle.com/terms-of-service"
 }
-
-// Due to https://github.com/gradle/gradle/issues/4823
-// Breaks configure on demand
-subprojects { parent!!.path.takeIf { it != rootProject.path }?.let { evaluationDependsOn(it) } }
 
 allprojects {
 
@@ -90,20 +76,12 @@ allprojects {
           }
           "org.jetbrains.kotlin" -> useVersion(versions.kotlin)
           "com.google.dagger" -> useVersion(versions.dagger)
-          "com.google.errorprone" -> {
-            if (requested.name in setOf("javac", "error_prone_annotations")) {
-              useVersion(versions.errorProne)
-            }
-          }
         }
       }
     }
   }
-}
 
-tasks {
-  register("wrapper", Wrapper::class) {
-    gradleVersion = "4.10.2"
-    distributionUrl = "https://services.gradle.org/distributions/gradle-$gradleVersion-all.zip"
+  apply {
+    from(rootProject.file("gradle/spotless-config.gradle"))
   }
 }

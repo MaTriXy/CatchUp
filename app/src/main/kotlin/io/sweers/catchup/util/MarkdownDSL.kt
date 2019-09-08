@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2018 Zac Sweers
+ * Copyright (C) 2019. Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.sweers.catchup.util
 
 interface Element {
@@ -98,10 +97,30 @@ class Document : MarkdownElement() {
       CodeBlockElement(text, language))
 
   fun h1(init: H1.() -> Unit) = initTag(H1(), init)
+  fun h1(text: String) = h1 {
+    text(text)
+    newline()
+  }
   fun h2(init: H2.() -> Unit) = initTag(H2(), init)
+  fun h2(text: String) = h1 {
+    text(text)
+    newline()
+  }
   fun h3(init: H3.() -> Unit) = initTag(H3(), init)
+  fun h3(text: String) = h1 {
+    text(text)
+    newline()
+  }
   fun h4(init: H4.() -> Unit) = initTag(H4(), init)
+  fun h4(text: String) = h1 {
+    text(text)
+    newline()
+  }
   fun h5(init: H5.() -> Unit) = initTag(H5(), init)
+  fun h5(text: String) = h1 {
+    text(text)
+    newline()
+  }
 }
 
 class Bold : MarkerElementWithText("*")

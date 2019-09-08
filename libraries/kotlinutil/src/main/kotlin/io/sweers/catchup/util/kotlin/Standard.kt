@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2018 Zac Sweers
+ * Copyright (C) 2019. Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+@file:Suppress("NOTHING_TO_INLINE")
 
 package io.sweers.catchup.util.kotlin
 
@@ -59,12 +60,15 @@ inline fun <T> applyOn(vararg args: T, crossinline block: T.() -> Unit) {
 
 inline fun <T, R : T> Collection<R>.castUp() = this as Collection<T>
 
+@Suppress("UNCHECKED_CAST")
 inline fun <R, T : R> Collection<R>.castDown() = this as Collection<T>
 
 inline fun <T, R : T> List<R>.castUp() = this as List<T>
 
+@Suppress("UNCHECKED_CAST")
 inline fun <R, T : R> List<R>.castDown() = this as List<T>
 
 inline fun <T, R : T> Set<R>.castUp() = this as Set<T>
 
+@Suppress("UNCHECKED_CAST")
 inline fun <R, T : R> Set<R>.castDown() = this as Set<T>

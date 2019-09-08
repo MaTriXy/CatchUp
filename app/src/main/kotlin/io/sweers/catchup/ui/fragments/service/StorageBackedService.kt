@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2018 Zac Sweers
+ * Copyright (C) 2019. Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.sweers.catchup.ui.fragments.service
 
 import io.reactivex.Completable
@@ -23,7 +22,6 @@ import io.reactivex.Single
 import io.reactivex.schedulers.Schedulers
 import io.reactivex.subjects.BehaviorSubject
 import io.sweers.catchup.BuildConfig
-import io.sweers.catchup.analytics.trace
 import io.sweers.catchup.data.ServiceDao
 import io.sweers.catchup.data.ServicePage
 import io.sweers.catchup.service.api.BindableCatchUpItemViewHolder
@@ -31,16 +29,19 @@ import io.sweers.catchup.service.api.CatchUpItem
 import io.sweers.catchup.service.api.DataRequest
 import io.sweers.catchup.service.api.DataResult
 import io.sweers.catchup.service.api.Service
+import io.sweers.catchup.service.api.UrlMeta
 import io.sweers.catchup.util.kotlin.switchIf
 import io.sweers.catchup.util.w
+import kotlinx.coroutines.channels.SendChannel
 import org.threeten.bp.Instant
 import org.threeten.bp.temporal.ChronoUnit
 import retrofit2.HttpException
 import java.io.IOException
 
 class StorageBackedService(
-    private val dao: ServiceDao,
-    private val delegate: Service) : Service {
+  private val dao: ServiceDao,
+  private val delegate: Service
+) : Service {
 
   private var currentSessionId: Long = -1
 
@@ -56,8 +57,8 @@ class StorageBackedService(
       if (meta().pagesAreNumeric) {
         return Observable.range(0, request.pageId.toInt())
             .concatMapEager { getPage(it.toString(), allowNetworkFallback = false).toObservable() }
-            .reduce { prev, result ->
-              DataResult(prev.data + result.data, result.nextPageToken, wasFresh = false)
+            .reduce { (data1), (data, nextPageToken) ->
+              DataResult(data1 + data, nextPageToken, wasFresh = false)
             }
             .filter { it.data.isNotEmpty() }
             .toSingle() // Guaranteed to have at least one if multifetching
@@ -86,9 +87,9 @@ class StorageBackedService(
               stateHandler.onComplete()
             }
           }
-          .reduce { prev, result ->
-            DataResult(data = prev.data + result.data,
-                nextPageToken = result.nextPageToken,
+          .reduce { (data1), (data, nextPageToken) ->
+            DataResult(data = data1 + data,
+                nextPageToken = nextPageToken,
                 wasFresh = false)
           }
           .filter { it.data.isNotEmpty() }
@@ -103,9 +104,11 @@ class StorageBackedService(
     }
   }
 
-  private fun getPage(page: String,
-      isRefresh: Boolean = false,
-      allowNetworkFallback: Boolean = true): Single<DataResult> {
+  private fun getPage(
+    page: String,
+    isRefresh: Boolean = false,
+    allowNetworkFallback: Boolean = true
+  ): Single<DataResult> {
     if (!isRefresh) {
       // Try from local first
       // If no prev session ID, grab the latest page
@@ -142,8 +145,10 @@ class StorageBackedService(
     }
   }
 
-  private fun fetchPageFromLocal(pageId: String,
-      useLatest: Boolean): Maybe<DataResult> {
+  private fun fetchPageFromLocal(
+    pageId: String,
+    useLatest: Boolean
+  ): Maybe<DataResult> {
     val now = Instant.now()
     val pageFetcher = with(dao) {
       if (pageId == meta().firstPageKey && useLatest) {
@@ -165,17 +170,15 @@ class StorageBackedService(
           dao.getItemByIds(servicePage.items.toTypedArray())
               .flattenAsObservable { it }
               .toSortedList { o1, o2 ->
-                idToIndex[o1.stableId()]!!.compareTo(idToIndex[o2.stableId()]!!)
+                idToIndex.getValue(o1.stableId()).compareTo(idToIndex.getValue(o2.stableId()))
               }
               .toMaybe()
               .map { DataResult(it, servicePage.nextPageToken, wasFresh = false) }
         }
-        .trace("Local data load - ${delegate.meta().id}")
   }
 
   private fun fetchPageFromNetwork(pageId: String, isRefresh: Boolean): Single<DataResult> {
     return delegate.fetchPage(DataRequest(true, false, pageId))
-        .trace("Network data load - ${delegate.meta().id}")
         .flatMap { result ->
           val calculatedExpiration = Instant.now()
               .plus(2, ChronoUnit.HOURS) // TODO preference this
@@ -201,7 +204,6 @@ class StorageBackedService(
 
           return@flatMap Completable.mergeArray(putPage, putItems)
               .subscribeOn(Schedulers.io())
-              .trace("Network data store - ${delegate.meta().id}")
               .andThen(Single.just(result))
         }
         .onErrorResumeNext { throwable: Throwable ->
@@ -217,9 +219,13 @@ class StorageBackedService(
         }
   }
 
-  override fun bindItemView(item: CatchUpItem, holder: BindableCatchUpItemViewHolder) {
-    delegate.bindItemView(item, holder)
+  override fun bindItemView(
+    item: CatchUpItem,
+    holder: BindableCatchUpItemViewHolder,
+    clicksChannel: SendChannel<UrlMeta>,
+    markClicksChannel: SendChannel<UrlMeta>,
+    longClicksChannel: SendChannel<UrlMeta>
+  ) {
+    delegate.bindItemView(item, holder, clicksChannel, markClicksChannel, longClicksChannel)
   }
-
-  override fun linkHandler() = delegate.linkHandler()
 }

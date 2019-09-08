@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2018 Zac Sweers
+ * Copyright (C) 2019. Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,13 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.sweers.catchup.ui.activity
 
 import android.animation.AnimatorInflater
-import android.app.Activity
 import android.content.Context
-import android.content.SharedPreferences
 import android.graphics.Rect
 import android.os.Bundle
 import android.os.Parcelable
@@ -32,35 +29,34 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.core.content.ContextCompat
-import androidx.core.content.edit
 import androidx.core.view.doOnLayout
-import androidx.fragment.app.transaction
+import androidx.fragment.app.commitNow
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.DiffUtil.Callback
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.RecyclerView.ViewHolder
+import com.chibatching.kotpref.bulk
 import com.getkeepsafe.taptargetview.TapTarget
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.floatingactionbutton.FloatingActionButton.OnVisibilityChangedListener
-import dagger.Binds
 import dagger.Module
 import dagger.android.ContributesAndroidInjector
 import dagger.multibindings.Multibinds
-import io.sweers.catchup.P
+import io.sweers.catchup.CatchUpPreferences
 import io.sweers.catchup.R
 import io.sweers.catchup.edu.Syllabus
 import io.sweers.catchup.edu.TargetRequest
 import io.sweers.catchup.edu.id
-import io.sweers.catchup.injection.scopes.PerActivity
+import io.sweers.catchup.injection.ActivityModule
 import io.sweers.catchup.injection.scopes.PerFragment
 import io.sweers.catchup.service.api.ServiceMeta
 import io.sweers.catchup.serviceregistry.ResolvedCatchUpServiceMetaRegistry
 import io.sweers.catchup.ui.FontHelper
-import io.sweers.catchup.ui.base.InjectableBaseFragment
-import io.sweers.catchup.ui.base.InjectingBaseActivity
-import io.sweers.catchup.util.ColorUtils
+import io.sweers.catchup.base.ui.InjectableBaseFragment
+import io.sweers.catchup.base.ui.InjectingBaseActivity
+import io.sweers.catchup.base.ui.ColorUtils
 import io.sweers.catchup.util.asDayContext
 import io.sweers.catchup.util.isInNightMode
 import io.sweers.catchup.util.resolveAttributeColor
@@ -81,18 +77,14 @@ class OrderServicesActivity : InjectingBaseActivity() {
     syllabus.bind(this)
 
     if (savedInstanceState == null) {
-      supportFragmentManager.transaction {
+      supportFragmentManager.commitNow {
         add(R.id.fragment_container, OrderServicesFragment())
       }
     }
   }
 
   @dagger.Module
-  abstract inner class Module {
-    @Binds
-    @PerActivity
-    abstract fun provideActivity(activity: OrderServicesActivity): Activity
-  }
+  abstract inner class Module : ActivityModule<OrderServicesActivity>
 }
 
 class OrderServicesFragment : InjectableBaseFragment() {
@@ -100,7 +92,7 @@ class OrderServicesFragment : InjectableBaseFragment() {
   @Inject
   lateinit var serviceMetas: Map<String, @JvmSuppressWildcards ServiceMeta>
   @Inject
-  lateinit var sharedPrefs: SharedPreferences
+  lateinit var catchUpPreferences: CatchUpPreferences
   @Inject
   internal lateinit var syllabus: Syllabus
   @Inject
@@ -124,8 +116,11 @@ class OrderServicesFragment : InjectableBaseFragment() {
       }
     }
 
-  override fun inflateView(inflater: LayoutInflater, container: ViewGroup?,
-      savedInstanceState: Bundle?): View {
+  override fun inflateView(
+    inflater: LayoutInflater,
+    container: ViewGroup?,
+    savedInstanceState: Bundle?
+  ): View {
     return inflater.inflate(R.layout.fragment_order_services, container, false)
   }
 
@@ -144,7 +139,7 @@ class OrderServicesFragment : InjectableBaseFragment() {
     }
     val lm = LinearLayoutManager(view.context)
     recyclerView.layoutManager = lm
-    storedOrder = sharedPrefs.getString(P.ServicesOrder.KEY, null)?.split(",") ?: emptyList()
+    storedOrder = catchUpPreferences.servicesOrder?.split(",") ?: emptyList()
     val instanceChanges = savedInstanceState?.getStringArrayList("pendingChanges")
     pendingChanges = instanceChanges?.map { serviceMetas[it] as ServiceMeta }
     val displayOrder = instanceChanges ?: storedOrder
@@ -180,8 +175,8 @@ class OrderServicesFragment : InjectableBaseFragment() {
 
     save.setOnClickListener {
       pendingChanges?.let { changes ->
-        sharedPrefs.edit {
-          putString(P.ServicesOrder.KEY, changes.joinToString(",", transform = ServiceMeta::id))
+        catchUpPreferences.bulk {
+          servicesOrder = changes.joinToString(",", transform = ServiceMeta::id)
         }
       }
       activity?.finish()
@@ -189,7 +184,7 @@ class OrderServicesFragment : InjectableBaseFragment() {
 
     val primaryColor = ContextCompat.getColor(save.context, R.color.colorPrimary)
     val textColor = save.context.resolveAttributeColor(android.R.attr.textColorPrimary)
-    syllabus.showIfNeverSeen(P.ServicesOrderSeen.KEY,
+    syllabus.showIfNeverSeen(catchUpPreferences::servicesOrderSeen.name,
         TargetRequest(
             target = {
               FabShowTapTarget(delegateTarget = { TapTarget.forView(save, "", "") },
@@ -200,7 +195,8 @@ class OrderServicesFragment : InjectableBaseFragment() {
                   .outerCircleColorInt(primaryColor)
                   .outerCircleAlpha(0.96f)
                   .titleTextColorInt(textColor)
-                  .descriptionTextColorInt(ColorUtils.modifyAlpha(textColor, 0.2f))
+                  .descriptionTextColorInt(
+                      ColorUtils.modifyAlpha(textColor, 0.2f))
                   .targetCircleColorInt(textColor)
                   .transparentTarget(true)
                   .drawShadow(true)
@@ -234,9 +230,10 @@ class OrderServicesFragment : InjectableBaseFragment() {
 }
 
 private class Adapter(
-    private val context: Context,
-    inputItems: List<ServiceMeta>,
-    private val changeListener: (List<ServiceMeta>) -> Unit) : RecyclerView.Adapter<Holder>() {
+  private val context: Context,
+  inputItems: List<ServiceMeta>,
+  private val changeListener: (List<ServiceMeta>) -> Unit
+) : RecyclerView.Adapter<Holder>() {
 
   private val items = inputItems.toMutableList()
 
@@ -320,10 +317,14 @@ private class Holder(itemView: View) : RecyclerView.ViewHolder(itemView) {
 }
 
 private class MoveCallback(
-    private val callback: (Int, Int) -> Unit) : ItemTouchHelper.SimpleCallback(
+  private val callback: (Int, Int) -> Unit
+) : ItemTouchHelper.SimpleCallback(
     ItemTouchHelper.UP or ItemTouchHelper.DOWN, 0) {
-  override fun onMove(recyclerView: RecyclerView, viewHolder: ViewHolder,
-      target: ViewHolder): Boolean {
+  override fun onMove(
+    recyclerView: RecyclerView,
+    viewHolder: ViewHolder,
+    target: ViewHolder
+  ): Boolean {
     callback(viewHolder.adapterPosition, target.adapterPosition)
     return true
   }
@@ -369,10 +370,10 @@ abstract class OrderServicesModule {
 }
 
 private class FabShowTapTarget(
-    private val delegateTarget: () -> TapTarget,
-    private val fab: FloatingActionButton,
-    title: CharSequence,
-    description: CharSequence?
+  private val delegateTarget: () -> TapTarget,
+  private val fab: FloatingActionButton,
+  title: CharSequence,
+  description: CharSequence?
 ) : TapTarget(title, description) {
 
   override fun bounds(): Rect {

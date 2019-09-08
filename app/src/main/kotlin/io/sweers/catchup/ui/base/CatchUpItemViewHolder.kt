@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2018 Zac Sweers
+ * Copyright (C) 2019. Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.sweers.catchup.ui.base
 
 import android.annotation.SuppressLint
@@ -38,14 +37,19 @@ import io.sweers.catchup.R
 import io.sweers.catchup.service.api.BindableCatchUpItemViewHolder
 import io.sweers.catchup.service.api.CatchUpItem
 import io.sweers.catchup.service.api.Mark
+import io.sweers.catchup.service.api.TemporaryScopeHolder
+import io.sweers.catchup.service.api.temporaryScope
 import io.sweers.catchup.util.hide
 import io.sweers.catchup.util.kotlin.format
+import io.sweers.catchup.util.primaryLocale
 import io.sweers.catchup.util.show
 import io.sweers.catchup.util.showIf
 import kotterknife.bindView
 import org.threeten.bp.Instant
 
-class CatchUpItemViewHolder(itemView: View) : ViewHolder(itemView), BindableCatchUpItemViewHolder {
+class CatchUpItemViewHolder(
+  itemView: View
+) : ViewHolder(itemView), BindableCatchUpItemViewHolder, TemporaryScopeHolder by temporaryScope() {
 
   internal val container by bindView<ConstraintLayout>(R.id.container)
   internal val tagsContainer by bindView<View>(R.id.tags_container)
@@ -88,10 +92,12 @@ class CatchUpItemViewHolder(itemView: View) : ViewHolder(itemView), BindableCatc
     container.setOnLongClickListener(longClickHandler)
   }
 
-  override fun bind(item: CatchUpItem,
-      itemClickHandler: OnClickListener?,
-      markClickHandler: OnClickListener?,
-      longClickHandler: OnLongClickListener?) {
+  override fun bind(
+    item: CatchUpItem,
+    itemClickHandler: OnClickListener?,
+    markClickHandler: OnClickListener?,
+    longClickHandler: OnLongClickListener?
+  ) {
     title(item.title.trim())
     score(item.score)
     timestamp(item.timestamp)
@@ -124,15 +130,13 @@ class CatchUpItemViewHolder(itemView: View) : ViewHolder(itemView), BindableCatc
 
   fun score(scoreValue: Pair<String, Int>?) {
     score.text = scoreValue?.let {
-      String.format("%s %s",
-          scoreValue.first,
-          scoreValue.second.toLong().format())
+      "${scoreValue.first} ${scoreValue.second.toLong().format()}"
     }
     updateDividerVisibility()
   }
 
   fun tag(text: String?) {
-    tag.text = text?.capitalize()
+    tag.text = text?.capitalize(tag.resources.primaryLocale)
     updateDividerVisibility()
   }
 
@@ -246,13 +250,14 @@ class CatchUpItemViewHolder(itemView: View) : ViewHolder(itemView), BindableCatc
 
       tintMark(sourceMark.iconTintColor ?: score.currentTextColor)
     }
-
   }
 
   fun hideMark() = mark.hide()
 
-  private fun getVerticalBias(sourceBlank: Boolean,
-      authorBlank: Boolean) = if (sourceBlank && authorBlank) {
+  private fun getVerticalBias(
+    sourceBlank: Boolean,
+    authorBlank: Boolean
+  ) = if (sourceBlank && authorBlank) {
     0.5f // Center
   } else if (sourceBlank) {
     0f // Top

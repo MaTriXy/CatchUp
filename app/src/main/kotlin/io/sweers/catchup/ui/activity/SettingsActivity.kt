@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2018 Zac Sweers
+ * Copyright (C) 2019. Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,46 +13,42 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.sweers.catchup.ui.activity
 
-import android.app.Activity
 import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Bundle
 import android.view.MenuItem
 import android.widget.Toast
 import androidx.appcompat.widget.Toolbar
-import androidx.fragment.app.transaction
+import androidx.fragment.app.commitNow
 import androidx.preference.CheckBoxPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
 import androidx.preference.PreferenceGroup
 import androidx.preference.children
 import com.google.android.material.snackbar.Snackbar
-import com.google.firebase.perf.FirebasePerformance
 import com.uber.autodispose.autoDisposable
-import dagger.Binds
 import dagger.Module
 import dagger.android.ContributesAndroidInjector
 import dagger.android.support.AndroidSupportInjection
 import io.reactivex.Single
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.schedulers.Schedulers
-import io.sweers.catchup.P
+import io.sweers.catchup.CatchUpPreferences
 import io.sweers.catchup.R
+import io.sweers.catchup.base.ui.BaseActivity
+import io.sweers.catchup.base.ui.InjectingBaseActivity
+import io.sweers.catchup.base.ui.updateNavBarColor
 import io.sweers.catchup.data.CatchUpDatabase
 import io.sweers.catchup.data.LumberYard
-import io.sweers.catchup.injection.scopes.PerActivity
+import io.sweers.catchup.injection.ActivityModule
 import io.sweers.catchup.injection.scopes.PerFragment
 import io.sweers.catchup.ui.about.AboutActivity
-import io.sweers.catchup.ui.base.BaseActivity
-import io.sweers.catchup.ui.base.InjectingBaseActivity
 import io.sweers.catchup.util.clearCache
 import io.sweers.catchup.util.isInNightMode
 import io.sweers.catchup.util.kotlin.format
 import io.sweers.catchup.util.setLightStatusBar
-import io.sweers.catchup.util.updateNavBarColor
 import io.sweers.catchup.util.updateNightMode
 import kotterknife.bindView
 import okhttp3.Cache
@@ -88,7 +84,7 @@ class SettingsActivity : InjectingBaseActivity() {
     }
 
     if (savedInstanceState == null) {
-      supportFragmentManager.transaction {
+      supportFragmentManager.commitNow {
         add(R.id.container, SettingsFrag())
       }
     } else if (savedInstanceState.getBoolean(ARG_FROM_RECREATE, false)) {
@@ -118,11 +114,7 @@ class SettingsActivity : InjectingBaseActivity() {
   }
 
   @Module
-  abstract class SettingsActivityModule {
-    @Binds
-    @PerActivity
-    abstract fun provideActivity(activity: SettingsActivity): Activity
-  }
+  abstract class SettingsActivityModule : ActivityModule<SettingsActivity>
 
   class SettingsFrag : PreferenceFragmentCompat() {
 
@@ -134,6 +126,8 @@ class SettingsActivity : InjectingBaseActivity() {
     lateinit var lumberYard: LumberYard
     @Inject
     lateinit var sharedPreferences: SharedPreferences
+    @Inject
+    lateinit var catchUpPreferences: CatchUpPreferences
 
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
       AndroidSupportInjection.inject(this)
@@ -145,68 +139,65 @@ class SettingsActivity : InjectingBaseActivity() {
         it.isIconSpaceReserved = false
       }
 
-      (findPreference(
-          P.SmartlinkingGlobal.KEY) as CheckBoxPreference).isChecked = P.SmartlinkingGlobal.get()
-      (findPreference(P.DaynightAuto.KEY) as CheckBoxPreference).isChecked = P.DaynightAuto.get()
-      (findPreference(P.DaynightNight.KEY) as CheckBoxPreference).isChecked = P.DaynightNight.get()
-      (findPreference(P.Reports.KEY) as CheckBoxPreference).isChecked = P.Reports.get()
+      (findPreference(catchUpPreferences::smartlinkingGlobal.name) as? CheckBoxPreference)?.isChecked = catchUpPreferences.smartlinkingGlobal
+      (findPreference(catchUpPreferences::daynightAuto.name) as? CheckBoxPreference)?.isChecked = catchUpPreferences.daynightAuto
+      (findPreference(catchUpPreferences::dayNightForceNight.name) as? CheckBoxPreference)?.isChecked = catchUpPreferences.dayNightForceNight
+      (findPreference(catchUpPreferences::reports.name) as? CheckBoxPreference)?.isChecked = catchUpPreferences.reports
 
-      val themeNavBarPref = findPreference(P.ThemeNavigationBar.KEY) as CheckBoxPreference
-      themeNavBarPref.isChecked = P.ThemeNavigationBar.get()
+      val themeNavBarPref = findPreference(catchUpPreferences::themeNavigationBar.name) as? CheckBoxPreference
+      themeNavBarPref?.isChecked = catchUpPreferences.themeNavigationBar
     }
 
     override fun onPreferenceTreeClick(preference: Preference): Boolean {
       when (preference.key) {
-        P.SmartlinkingGlobal.KEY -> {
-          P.SmartlinkingGlobal.put((preference as CheckBoxPreference).isChecked).apply()
+        catchUpPreferences::smartlinkingGlobal.name -> {
+          catchUpPreferences.smartlinkingGlobal = (preference as CheckBoxPreference).isChecked
           return true
         }
-        P.DaynightAuto.KEY -> {
+        catchUpPreferences::daynightAuto.name -> {
           val isChecked = (preference as CheckBoxPreference).isChecked
-          P.DaynightAuto.put(isChecked)
+          catchUpPreferences.daynightAuto = isChecked
               .apply {
                 if (isChecked) {
                   // If we're enabling auto, clear out the prev daynight night-only mode
-                  putBoolean(P.DaynightNight.KEY, false)
-                  (findPreference(P.DaynightNight.KEY) as CheckBoxPreference).isChecked = false
+                  catchUpPreferences.dayNightForceNight = false
+                  (findPreference(catchUpPreferences::dayNightForceNight.name) as? CheckBoxPreference)?.isChecked = false
                 }
               }
-              .apply()
-          activity?.updateNightMode()
+          activity?.updateNightMode(catchUpPreferences)
           return true
         }
-        P.DaynightNight.KEY -> {
-          P.DaynightNight.put((preference as CheckBoxPreference).isChecked).apply()
-          activity?.updateNightMode()
+        catchUpPreferences::dayNightForceNight.name -> {
+          catchUpPreferences.dayNightForceNight = (preference as CheckBoxPreference).isChecked
+          activity?.updateNightMode(catchUpPreferences)
           return true
         }
-        P.ThemeNavigationBar.KEY -> {
-          P.ThemeNavigationBar.put((preference as CheckBoxPreference).isChecked).apply()
+        catchUpPreferences::themeNavigationBar.name -> {
+          catchUpPreferences.themeNavigationBar = (preference as CheckBoxPreference).isChecked
           (activity as SettingsActivity).run {
             resultData.putBoolean(NAV_COLOR_UPDATED, true)
-            updateNavBarColor(recreate = true)
+            updateNavBarColor(recreate = true, uiPreferences = catchUpPreferences)
           }
           return true
         }
-        P.ReorderServicesSection.KEY -> {
+        CatchUpPreferences.SECTION_KEY_ORDER_SERVICES -> {
           (activity as SettingsActivity).resultData.putBoolean(SERVICE_ORDER_UPDATED, true)
           startActivity(Intent(activity, OrderServicesActivity::class.java))
           return true
         }
-        P.Reports.KEY -> {
+        catchUpPreferences::reports.name -> {
           val isChecked = (preference as CheckBoxPreference).isChecked
-          FirebasePerformance.getInstance().isPerformanceCollectionEnabled = isChecked
-          P.Reports.put(isChecked).apply()
+          catchUpPreferences.reports = isChecked
           Snackbar.make(view!!, R.string.settings_reset, Snackbar.LENGTH_SHORT)
               .setAction(R.string.undo) {
                 // TODO Maybe this should actually be a restart button
-                P.Reports.put(!isChecked).apply()
+                catchUpPreferences.reports = !isChecked
                 preference.isChecked = !isChecked
               }
               .show()
           return true
         }
-        P.ClearCache.KEY -> {
+        CatchUpPreferences.ITEM_KEY_CLEAR_CACHE -> {
           Single.fromCallable {
             // TODO would be nice to measure the size impact of this file ¯\_(ツ)_/¯
             sharedPreferences.edit().clear().apply()
@@ -222,9 +213,10 @@ class SettingsActivity : InjectingBaseActivity() {
               nukeItems()
               nukePages()
             }
-            with(database.smmryDao()) {
-              nukeItems()
-            }
+            // TODO figure out a way to bubble up clearable items from ad-hoc things like smmry
+//            with(database.smmryDao()) {
+//              nukeItems()
+//            }
             val deletedFromDb = initialDbSize - dbFile.length()
             val clearedLogs = lumberYard.cleanUp()
             return@fromCallable cacheCleaned + deletedFromDb + networkCacheCleaned + clearedLogs
@@ -240,11 +232,11 @@ class SettingsActivity : InjectingBaseActivity() {
               }
           return true
         }
-        P.About.KEY -> {
+        CatchUpPreferences.ITEM_KEY_ABOUT -> {
           startActivity(Intent(activity, AboutActivity::class.java))
           return true
         }
-        P.Services.KEY -> {
+        CatchUpPreferences.SECTION_KEY_SERVICES -> {
           (activity as SettingsActivity).resultData.putBoolean(SERVICE_ORDER_UPDATED, true)
           startActivity(Intent(activity, ServiceSettingsActivity::class.java))
           return true

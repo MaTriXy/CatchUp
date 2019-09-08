@@ -1,11 +1,11 @@
 /*
- * Copyright 2016 Google Inc.
+ * Copyright (C) 2019. Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.sweers.catchup.service.dribbble
 
 import android.text.TextUtils
@@ -26,7 +25,6 @@ import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import org.threeten.bp.Instant
 import org.threeten.bp.format.DateTimeFormatter
-import org.threeten.bp.format.DateTimeParseException
 import java.util.regex.Pattern
 
 /**
@@ -65,17 +63,18 @@ internal object DribbbleParser {
       DATE_FORMAT.parse(descriptionBlock.select("em.timestamp")
           .first()
           .text(), Instant.FROM)
-    } catch (e2: DateTimeParseException) {
+    } catch (e2: Exception) {
       Instant.now()
     }
 
+    val isAnimated = imgUrl.endsWith(".gif")
     return Shot(
         id = element.id().replace("screenshot-", "").toLong(),
         htmlUrl = "$ENDPOINT${element.select("a.dribbble-link").first().attr("href")}",
         title = descriptionBlock.select("strong").first().text(),
         description = description,
-        images = Images(null, imgUrl),
-        animated = element.select("div.gif-indicator").first() != null,
+        images = Images(null, if (isAnimated) imgUrl.replace("_1x", "") else imgUrl),
+        animated = isAnimated,
         createdAt = createdAt,
         likesCount = element.select("li.fav")
             .first()
@@ -111,7 +110,9 @@ internal object DribbbleParser {
     val matchId = PATTERN_PLAYER_ID.matcher(avatarUrl)
     var id: Long = -1L
     if (matchId.find() && matchId.groupCount() == 1) {
-      id = matchId.group(1).toLong()
+      matchId.group(1)?.toLong()?.let {
+        id = it
+      }
     }
     val slashUsername = userBlock.attr("href")
     val username = if (slashUsername.isEmpty()) null else slashUsername.substring(1)

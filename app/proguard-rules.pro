@@ -128,15 +128,6 @@
 -dontwarn afu.org.checkerframework.**
 -dontwarn com.google.errorprone.annotations.**
 
-# Bypass
--keep class in.uncod.android.bypass.Document { <init>(...); }
--keep class in.uncod.android.bypass.Element {
-    <init>(...);
-    void setChildren(...);
-    void setParent(...);
-    void addAttribute(...);
-}
-
 # Tikxml
 # The name of @Xml types is used to look up the generated adapter.
 -keepnames @com.tickaroo.tikxml.annotation.Xml class *
@@ -149,3 +140,10 @@
 #    <init>(...);
 #    <fields>;
 #}
+
+# TODO should be able to remove in AGP 3.7 & Coroutines 1.3.0 stable
+# Ensure the custom, fast service loader implementation is removed.
+-assumevalues class kotlinx.coroutines.internal.MainDispatcherLoader {
+  boolean FAST_SERVICE_LOADER_ENABLED return false;
+}
+-checkdiscard class kotlinx.coroutines.internal.FastServiceLoader

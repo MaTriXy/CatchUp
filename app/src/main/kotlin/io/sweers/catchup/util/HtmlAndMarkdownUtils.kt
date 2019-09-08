@@ -1,11 +1,11 @@
 /*
- * Copyright 2015 Google Inc.
+ * Copyright (C) 2019. Zac Sweers
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,11 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.sweers.catchup.util
 
-import `in`.uncod.android.bypass.Bypass
-import `in`.uncod.android.bypass.style.TouchableUrlSpan
 import android.content.res.ColorStateList
 import android.os.Build
 import android.text.Html
@@ -29,19 +26,22 @@ import android.text.style.URLSpan
 import android.text.util.Linkify
 import android.widget.TextView
 import androidx.annotation.ColorInt
+import io.noties.markwon.Markwon
 
 /*
  * Utility methods for working with HTML and markdown.
  */
 
-inline class Markdown(val rawValue: String)
+inline class Markdown(val rawValue: String) {
+  override fun toString(): String = rawValue
+}
 
 fun String.markdown(): Markdown = Markdown(this)
 
 /**
  * Parse Markdown and plain-text links.
  *
- * [Bypass] does not handle plain text links (i.e. not md syntax) and requires a
+ * [Markwon] does not handle plain text links (i.e. not md syntax) and requires a
  * `String` input (i.e. squashes any spans). [Linkify] handles plain links but also
  * removes any existing spans. So we can't just run our input through both.
  *
@@ -50,12 +50,13 @@ fun String.markdown(): Markdown = Markdown(this)
  * Best of both worlds.
  */
 fun Markdown.parseMarkdownAndPlainLinks(
-    on: TextView,
-    with: Bypass,
-    loadImageCallback: Bypass.LoadImageCallback? = null,
-    alternateSpans: ((String) -> Set<Any>)? = null): CharSequence {
-  return with.markdownToSpannable(rawValue, on, loadImageCallback)
-      .linkifyPlainLinks(on.linkTextColors, on.highlightColor, alternateSpans)
+  on: TextView,
+  with: Markwon,
+  alternateSpans: ((String) -> Set<Any>)? = null
+): CharSequence {
+  val markdown = with.toMarkdown(rawValue)
+  with.setParsedMarkdown(on, markdown)
+  return markdown.linkifyPlainLinks(on.linkTextColors, on.highlightColor, alternateSpans)
 }
 
 /**
@@ -63,15 +64,15 @@ fun Markdown.parseMarkdownAndPlainLinks(
  * spans.
  */
 fun Markdown.parseMarkdownAndSetText(
-    textView: TextView,
-    markdown: Bypass,
-    loadImageCallback: Bypass.LoadImageCallback? = null,
-    alternateUrlSpan: ((String) -> Set<Any>)? = null) {
+  textView: TextView,
+  markwon: Markwon,
+  alternateUrlSpan: ((String) -> Set<Any>)? = null
+) {
   if (TextUtils.isEmpty(rawValue)) {
     return
   }
   textView.setTextWithNiceLinks(
-      parseMarkdownAndPlainLinks(textView, markdown, loadImageCallback, alternateUrlSpan))
+      parseMarkdownAndPlainLinks(textView, markwon, alternateUrlSpan))
 }
 
 /**
@@ -95,8 +96,9 @@ fun TextView.setTextWithNiceLinks(input: CharSequence) {
  * so that they respond to touch.
  */
 fun String.parseHtml(
-    linkTextColor: ColorStateList,
-    @ColorInt linkHighlightColor: Int): SpannableStringBuilder {
+  linkTextColor: ColorStateList,
+  @ColorInt linkHighlightColor: Int
+): SpannableStringBuilder {
   var spanned = fromHtml()
 
   // strip any trailing newlines
@@ -115,14 +117,15 @@ fun TextView.parseAndSetText(input: String) {
 }
 
 private fun CharSequence.linkifyPlainLinks(
-    linkTextColor: ColorStateList,
-    @ColorInt linkHighlightColor: Int,
-    alternateUrlSpan: ((String) -> Set<Any>)? = null): SpannableStringBuilder {
+  linkTextColor: ColorStateList,
+  @ColorInt linkHighlightColor: Int,
+  alternateUrlSpan: ((String) -> Set<Any>)? = null
+): SpannableStringBuilder {
   val plainLinks = SpannableString(this) // copy of this
 
   // Linkify doesn't seem to work as expected on M+
   // TODO: figure out why
-  //Linkify.addLinks(plainLinks, Linkify.WEB_URLS);
+  // Linkify.addLinks(plainLinks, Linkify.WEB_URLS);
 
   val urlSpans = plainLinks.getSpans(0, plainLinks.length, URLSpan::class.java)
 
@@ -134,16 +137,22 @@ private fun CharSequence.linkifyPlainLinks(
         ?.invoke(urlSpan.url)
         ?.forEach { setSpan(ssb, urlSpan, plainLinks, it) }
         ?: setSpan(ssb, urlSpan, plainLinks,
-            TouchableUrlSpan(urlSpan.url, linkTextColor, linkHighlightColor))
+            object : TouchableUrlSpan(urlSpan.url, linkTextColor, linkHighlightColor) {
+              override fun onClick(url: String) {
+                // TODO wat
+              }
+            })
   }
 
   return ssb
 }
 
-private fun setSpan(ssb: SpannableStringBuilder,
-    urlSpan: URLSpan,
-    plainLinks: SpannableString,
-    span: Any) {
+private fun setSpan(
+  ssb: SpannableStringBuilder,
+  urlSpan: URLSpan,
+  plainLinks: SpannableString,
+  span: Any
+) {
   ssb.setSpan(span,
       plainLinks.getSpanStart(urlSpan),
       plainLinks.getSpanEnd(urlSpan),
