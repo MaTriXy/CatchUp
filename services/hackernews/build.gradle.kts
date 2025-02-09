@@ -13,84 +13,73 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import com.android.build.api.variant.LibraryAndroidComponentsExtension
 
 plugins {
-  id("com.android.library")
-  kotlin("android")
-  kotlin("kapt")
-  id("kotlin-noarg")
-}
-
-apply {
-  from(rootProject.file("gradle/config-kotlin-sources.gradle"))
+  alias(libs.plugins.foundry.base)
+  alias(libs.plugins.android.library)
+  alias(libs.plugins.kotlin.android)
+  alias(libs.plugins.kotlin.noarg)
 }
 
 android {
-  compileSdkVersion(deps.android.build.compileSdkVersion)
+  namespace = "catchup.service.hackernews"
+  buildFeatures {
+    resValues = true
+  }
+}
 
-  defaultConfig {
-    minSdkVersion(deps.android.build.minSdkVersion)
-    targetSdkVersion(deps.android.build.targetSdkVersion)
-    vectorDrawables.useSupportLibrary = true
+foundry {
+  features {
+    dagger()
   }
-  compileOptions {
-    sourceCompatibility = JavaVersion.VERSION_1_8
-    targetCompatibility = JavaVersion.VERSION_1_8
-  }
-  lintOptions {
-    isCheckReleaseBuilds = false
-    isAbortOnError = false
-  }
-  libraryVariants.all {
-    generateBuildConfigProvider?.configure {
-      enabled = false
+  android {
+    features {
+      resources("catchup_service_hn_")
     }
   }
 }
 
+configure<LibraryAndroidComponentsExtension> {
+  onVariants { variant ->
+    // Configure firebase
+    fun firebaseProperty(property: String, resolveName: Boolean = true) {
+      val buildTypeName = variant.buildType!!
+      val name = if (resolveName && buildTypeName == "debug") {
+        "$property.debug"
+      } else property
+      val value = project.properties[name].toString()
+      variant.resValues.put(variant.makeResValueKey("string", property.removePrefix("catchup.")),
+        com.android.build.api.variant.ResValue(value))
+    }
+    firebaseProperty("catchup.google_api_key")
+    firebaseProperty("catchup.google_app_id")
+    firebaseProperty("catchup.firebase_database_url")
+    firebaseProperty("catchup.ga_trackingId")
+    firebaseProperty("catchup.gcm_defaultSenderId")
+    firebaseProperty("catchup.google_storage_bucket")
+    firebaseProperty("catchup.default_web_client_id")
+    firebaseProperty("catchup.google_crash_reporting_api_key")
+    firebaseProperty("catchup.project_id", false)
+  }
+}
+
 noArg {
-  annotation("io.sweers.catchup.service.hackernews.model.NoArg")
-}
-
-tasks.withType<KotlinCompile> {
-  kotlinOptions {
-    freeCompilerArgs = build.standardFreeKotlinCompilerArgs
-    jvmTarget = "1.8"
-  }
-}
-
-kapt {
-  correctErrorTypes = true
-  mapDiagnosticLocations = true
-
-  // Compiling with JDK 11+, but kapt doesn't forward source/target versions.
-  javacOptions {
-    option("-source", "8")
-    option("-target", "8")
-  }
+  annotation("catchup.service.hackernews.model.NoArg")
 }
 
 dependencies {
-  api(project(":service-api"))
-  implementation(project(":libraries:util"))
+  api(libs.androidx.annotations)
+  api(libs.dagger.runtime)
+  api(libs.kotlin.datetime)
+  api(projects.libraries.di)
+  api(projects.serviceApi)
 
-  kapt(project(":service-registry:service-registry-compiler"))
-  kapt(deps.crumb.compiler)
-  kapt(deps.dagger.apt.compiler)
-  kapt(deps.assistedInject.processor)
-  compileOnly(deps.assistedInject.annotations)
-
-  implementation(deps.android.androidx.viewModel.core)
-  implementation(deps.android.androidx.viewModel.ktx)
-  implementation(deps.android.androidx.viewModel.savedState)
-  implementation(deps.android.firebase.database)
-
-  api(deps.android.androidx.design)
-  api(deps.android.androidx.fragmentKtx)
-  api(deps.android.androidx.annotations)
-  api(deps.dagger.runtime)
-  api(deps.misc.lazythreeten)
-  api(deps.rx.java)
+  implementation(libs.androidx.annotations)
+  implementation(libs.firebase.database)
+  implementation(libs.kotlin.coroutines)
+  implementation(libs.kotlin.datetime)
+  implementation(libs.okhttp.core)
+  implementation(projects.libraries.kotlinutil)
+  implementation(projects.libraries.util)
 }

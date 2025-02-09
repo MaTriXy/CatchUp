@@ -13,60 +13,47 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-  id("com.android.library")
-  kotlin("android")
+  alias(libs.plugins.android.library)
+  alias(libs.plugins.kotlin.android)
+  alias(libs.plugins.redacted)
+  alias(libs.plugins.foundry.base)
 }
 
 android {
-  compileSdkVersion(deps.android.build.compileSdkVersion)
+  namespace = "catchup.util"
+}
 
-  defaultConfig {
-    minSdkVersion(deps.android.build.minSdkVersion)
-    targetSdkVersion(deps.android.build.targetSdkVersion)
-  }
-  compileOptions {
-    sourceCompatibility = JavaVersion.VERSION_1_8
-    targetCompatibility = JavaVersion.VERSION_1_8
-  }
-  sourceSets {
-    findByName("main")?.java?.srcDirs("src/main/kotlin")
-    findByName("debug")?.java?.srcDirs("src/debug/kotlin")
-    findByName("release")?.java?.srcDirs("src/release/kotlin")
-    findByName("test")?.java?.srcDirs("src/test/kotlin")
-  }
-  libraryVariants.all {
-    generateBuildConfigProvider?.configure {
-      enabled = false
+redacted {
+  redactedAnnotation.set("catchup.util.network.Redacted")
+}
+
+foundry {
+  android {
+    features {
+      resources("catchup_util_")
     }
   }
 }
 
-tasks.withType<KotlinCompile> {
-  kotlinOptions {
-    freeCompilerArgs = build.standardFreeKotlinCompilerArgs
-    jvmTarget = "1.8"
-  }
-}
-
 dependencies {
-  api(deps.android.androidx.annotations)
+  api(libs.androidx.coreKtx)
+  api(libs.apollo.api)
+  api(libs.dagger.runtime)
+  api(libs.kotlin.datetime)
+  api(libs.kotlinx.immutable)
+  api(libs.moshi.core)
+  api(libs.okhttp.core)
 
-  implementation(deps.android.androidx.appCompat)
-  implementation(deps.android.androidx.core)
-  implementation(deps.android.androidx.design)
-  implementation(deps.rx.android)
+  implementation(libs.androidx.core)
+  implementation(libs.kotlin.datetime)
+  implementation(libs.misc.timber)
+  implementation(libs.misc.unbescape)
+  implementation(projects.libraries.appconfig)
 
-  api(deps.android.androidx.coreKtx)
-  api(deps.dagger.runtime)
-  api(deps.kotlin.stdlib.jdk7)
-  api(deps.misc.lazythreeten)
-  api(deps.moshi.core)
-  api(deps.misc.timber)
-  api(deps.okhttp.core)
-  api(deps.rx.java)
-
-  implementation(deps.misc.unbescape)
+  testImplementation(libs.kotlin.test)
+  testImplementation(libs.misc.okio.fakeFileSystem)
+  testImplementation(libs.test.junit)
+  testImplementation(libs.test.truth)
 }

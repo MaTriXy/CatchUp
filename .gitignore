@@ -44,6 +44,7 @@ gen/
 .gradle/
 .gradletasknamecache
 build/
+.kotlin/
 
 # Local configuration file (sdk path, etc)
 local.properties
@@ -73,6 +74,7 @@ hs_err_pid*
 *.ipr
 *.iws
 .idea/
+!.idea/icon.png
 
 
 ###Eclipse###
@@ -113,3 +115,8 @@ google-services.json
 # Do not commit plain release keys
 signing/app-release.jks
 signing/play-account.p12
+
+.cache
+
+profile-out-*/
+gradle-user-home/

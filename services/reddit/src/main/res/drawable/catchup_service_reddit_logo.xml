@@ -1,0 +1,25 @@
+<!--
+  ~ Copyright (c) 2018 Zac Sweers
+  ~
+  ~ Licensed under the Apache License, Version 2.0 (the "License");
+  ~ you may not use this file except in compliance with the License.
+  ~ You may obtain a copy of the License at
+  ~
+  ~   http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing, software
+  ~ distributed under the License is distributed on an "AS IS" BASIS,
+  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~ See the License for the specific language governing permissions and
+  ~ limitations under the License.
+  -->
+
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="28dp"
+    android:height="24dp"
+    android:viewportWidth="28"
+    android:viewportHeight="24">
+  <path
+      android:fillColor="#FFFFFF"
+      android:pathData="M23.566,0.166C24.964,0.166 26.1,1.298 26.1,2.69C26.1,4.082 24.964,5.214 23.566,5.214C22.2554,5.214 21.1733,4.2191 21.0431,2.9477L21.03,2.69L21.036,2.622L16.35,1.524L14.62,6.972C17.782,7.086 20.64,7.97 22.752,9.36C23.31,8.824 24.066,8.49 24.9,8.49C26.515,8.49 27.8446,9.7245 27.9873,11.2955L28,11.576C28,12.75 27.332,13.76 26.36,14.282C26.414,14.592 26.448,14.906 26.448,15.226C26.448,19.788 20.838,23.5 13.942,23.5C7.046,23.5 1.436,19.788 1.436,15.226C1.436,14.888 1.476,14.554 1.536,14.226C0.622,13.688 0,12.708 0,11.576C0,9.874 1.39,8.49 3.098,8.488C3.91,8.488 4.644,8.808 5.198,9.318C7.2569,7.9833 10.0058,7.1173 13.0559,6.9753L13.714,6.956L15.644,0.88C15.7007,0.7 15.8671,0.5811 16.0483,0.5777L16.158,0.59L21.208,1.774C21.578,0.836 22.492,0.166 23.566,0.166ZM9.752,11.856C8.734,11.856 7.906,12.68 7.906,13.694C7.906,14.706 8.734,15.53 9.752,15.53C10.768,15.532 11.596,14.708 11.596,13.694C11.596,12.68 10.768,11.856 9.752,11.856ZM18.256,11.858C17.238,11.858 16.412,12.682 16.412,13.696C16.412,14.708 17.24,15.532 18.256,15.532C19.272,15.532 20.1,14.708 20.1,13.696C20.1,12.682 19.274,11.858 18.256,11.858Z" />
+</vector>

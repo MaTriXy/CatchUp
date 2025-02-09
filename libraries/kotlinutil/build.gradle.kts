@@ -13,24 +13,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-
 plugins {
-  kotlin("jvm")
+  alias(libs.plugins.kotlin.multiplatform)
+  alias(libs.plugins.foundry.base)
 }
 
-tasks.withType<KotlinCompile> {
-  kotlinOptions {
-    freeCompilerArgs = build.standardFreeKotlinCompilerArgs
-    jvmTarget = "1.8"
+kotlin {
+  // region KMP Targets
+  jvm()
+  // endregion
+
+  applyDefaultHierarchyTemplate()
+
+  sourceSets {
+    commonMain {
+      dependencies {
+        api(libs.kotlin.coroutines)
+      }
+    }
   }
-}
-
-dependencies {
-  api(deps.kotlin.coroutines)
-  api(deps.kotlin.stdlib.core)
-
-  testImplementation(deps.test.junit)
-  testImplementation(deps.test.truth)
 }

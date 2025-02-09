@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  # Only run push on main
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '*.md'
+  # Always run on PRs
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ci-${{ github.ref }}-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '22'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Prepare Gradle Home
+        run: |
+          mkdir -p ~/.gradle
+          touch ~/.gradle/gradle.properties
+
+      - name: Bootstrap
+        run: ./gradlew bootstrap
+
+      - name: Get changed files
+        if: always() && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir tmp
+          gh pr view ${{ github.event.number }} --json files -q '.files[].path' > tmp/changed_files.txt
+
+      - name: Compute affected projects
+        if: always() && github.event_name == 'pull_request'
+        id: gradle-affected-projects
+        run: ./gradlew computeAffectedProjects --changed-files tmp/changed_files.txt -Pslack.debug=true
+
+      - name: Check affected projects
+        run: |
+          path="build/skippy/merged/affected_projects.txt"
+          if [[ -e "$path" ]]; then
+            cat "$path"
+            # Copy focus file to root of project
+            # Necessary to omit the newline because the focus plugin reads the whole file text!
+            # TODO changing settings breaks caching https://issuetracker.google.com/issues/279997228
+            # echo -n "build/skippy/merged/focus.settings.gradle" > .focus
+            # Check if app is affected
+            if grep -q ":app" "$path"; then
+              echo "App is affected"
+              echo 'APP_TARGET=:app:assembleRelease' >> $GITHUB_ENV
+            else
+              echo "App is not affected"
+              echo 'APP_TARGET=' >> $GITHUB_ENV
+            fi
+          else
+            echo "No file found, all projects are affected"
+            echo 'APP_TARGET=:app:assembleRelease' >> $GITHUB_ENV
+          fi
+
+      - name: Upload skippy diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports
+          path: build/skippy/**
+
+      - name: Build and run tests
+        run: ./gradlew check ${{ env.APP_TARGET }} globalCiLint globalCiUnitTest --continue --quiet -Pslack.avoidance.affectedProjectsFile=build/skippy/merged/affected_projects.txt
+
+      - name: Filter sarif
+        if: always() && github.event_name == 'pull_request'
+        run: |
+          ./.github/workflows/sarif-filter.main.kts --sarif-file app/build/reports/lint-results-release.sarif --modified-files tmp/changed_files.txt --output-file tmp/modified_sarif.sarif
+
+      - name: Check if output sarif exists
+        id: check_file
+        run: |
+          if [[ -f tmp/modified_sarif.sarif ]]; then
+            echo "modified_sarif_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "modified_sarif_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload lint sarif
+        if: steps.check_file.outputs.modified_sarif_exists == 'true'
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: tmp/modified_sarif.sarif
+
+      - name: (Fail-only) Upload build reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports
+          path: |
+            **/build/reports/*

@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ~ Copyright (c) 2018 Zac Sweers
+  ~
+  ~ Licensed under the Apache License, Version 2.0 (the "License");
+  ~ you may not use this file except in compliance with the License.
+  ~ You may obtain a copy of the License at
+  ~
+  ~   http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing, software
+  ~ distributed under the License is distributed on an "AS IS" BASIS,
+  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~ See the License for the specific language governing permissions and
+  ~ limitations under the License.
+  -->
+
+<lint>
+  <issue id="all">
+    <ignore path="*/generated/*" />
+  </issue>
+
+  <issue id="ComposeCompositionLocalUsage">
+      <option name="allowed-composition-locals" value="LocalEnabled,LocalScrollToTop,LocalDynamicTheme,LocalServiceThemeColor,LocalDisplayFeatures,LocalFabPlacement,LocalScaffoldContentPadding" />
+  </issue>
+
+  <issue id="ComposeM2Api" severity="error" />
+  <issue id="GradleDependency" severity="ignore" />
+  <issue id="Typos" severity="ignore" />
+  <issue id="VectorPath" severity="ignore" />
+  <issue id="MissingTranslation" severity="ignore" />
+  <issue id="ExtraTranslation" severity="ignore" />
+  <issue id="VectorPath" severity="ignore" />
+  <issue id="ComposeUnstableCollections" severity="Error" />
+  <!-- This has been broken in lint for many releases now -->
+  <issue id="ProduceStateDoesNotAssignValue" severity="ignore" />
+
+  <!-- Something is up with EnsureInitializerMetadata -->
+  <issue id="UnknownIssueId" severity="ignore" />
+
+  <!-- Too noisy and only really from slack -->
+  <issue id="AvoidUsingNotNullOperator" severity="ignore" />
+
+  <!-- Slack-specific -->
+  <issue id="RawDispatchersUse,DeprecatedCall,MoshiUsageEnumMissingUnknown,MainScopeUsage" severity="ignore" />
+</lint>

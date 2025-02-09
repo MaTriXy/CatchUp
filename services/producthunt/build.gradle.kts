@@ -14,83 +14,62 @@
  * limitations under the License.
  */
 
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-
 plugins {
-  id("com.android.library")
-  kotlin("android")
-  kotlin("kapt")
-}
-
-apply {
-  from(rootProject.file("gradle/config-kotlin-sources.gradle"))
+  alias(libs.plugins.foundry.base)
+  alias(libs.plugins.android.library)
+  alias(libs.plugins.kotlin.android)
+  alias(libs.plugins.apollo)
 }
 
 android {
-  compileSdkVersion(deps.android.build.compileSdkVersion)
-
   defaultConfig {
-    minSdkVersion(deps.android.build.minSdkVersion)
-    targetSdkVersion(deps.android.build.targetSdkVersion)
-    vectorDrawables.useSupportLibrary = true
-    buildConfigField("String", "PRODUCT_HUNT_DEVELOPER_TOKEN",
-        "\"${project.properties["catchup_product_hunt_developer_token"]}\"")
+    buildConfigField("String", "PRODUCT_HUNT_CLIENT_ID",
+        "\"${project.properties["catchup_product_hunt_client_id"]}\"")
+    buildConfigField("String", "PRODUCT_HUNT_CLIENT_SECRET",
+        "\"${project.properties["catchup_product_hunt_client_secret"]}\"")
   }
-  compileOptions {
-    sourceCompatibility = JavaVersion.VERSION_1_8
-    targetCompatibility = JavaVersion.VERSION_1_8
+  buildFeatures {
+    buildConfig = true
   }
-  lintOptions {
-    isCheckReleaseBuilds = false
-    isAbortOnError = false
+  namespace = "catchup.service.producthunt"
+}
+
+apollo {
+  // https://api.producthunt.com/v2/api/graphql
+  service("producthunt") {
+    mapScalar("DateTime", "kotlinx.datetime.Instant")
+    packageName.set("catchup.service.producthunt")
+    schemaFiles.from(file("src/main/graphql/catchup/service/producthunt/schema.graphqls"))
   }
-  libraryVariants.all {
-    generateBuildConfigProvider?.configure {
-      // Can't enable until we have somewhere else for the token
-//      enabled = false
+}
+
+foundry {
+  features {
+    dagger()
+    moshi(codegen = false)
+  }
+  android {
+    features {
+      resources("catchup_service_ph_")
     }
   }
 }
 
-tasks.withType<KotlinCompile> {
-  kotlinOptions {
-    freeCompilerArgs = build.standardFreeKotlinCompilerArgs
-    jvmTarget = "1.8"
-  }
-}
-
-kapt {
-  correctErrorTypes = true
-  mapDiagnosticLocations = true
-  arguments {
-    arg("moshi.generated", "javax.annotation.Generated")
-  }
-
-  // Compiling with JDK 11+, but kapt doesn't forward source/target versions.
-  javacOptions {
-    option("-source", "8")
-    option("-target", "8")
-  }
-}
-
 dependencies {
-  kapt(project(":service-registry:service-registry-compiler"))
-  kapt(deps.crumb.compiler)
-  kapt(deps.dagger.apt.compiler)
-  kapt(deps.moshi.compiler)
+  api(libs.apollo.api)
+  api(libs.apollo.runtime)
+  api(libs.dagger.runtime)
+  api(libs.kotlin.datetime)
+  api(libs.moshi.core)
+  api(libs.okhttp.core)
+  api(projects.libraries.auth)
+  api(projects.libraries.di)
+  api(projects.libraries.util)
+  api(projects.serviceApi)
 
-  implementation(project(":libraries:util"))
-  implementation(deps.misc.okio)
-  implementation(deps.moshi.core)
-  implementation(deps.retrofit.core)
-  implementation(deps.retrofit.moshi)
-  implementation(deps.retrofit.rxJava2)
-  implementation(deps.okhttp.core)
-  implementation(deps.misc.moshiLazyAdapters)
-
-  api(project(":service-api"))
-  api(deps.android.androidx.annotations)
-  api(deps.dagger.runtime)
-  api(deps.misc.lazythreeten)
-  api(deps.rx.java)
+  implementation(libs.androidx.datastore.preferences)
+  implementation(libs.apollo.httpcache)
+  implementation(libs.kotlin.datetime)
+  implementation(libs.misc.okio)
+  implementation(libs.okhttp.core)
 }

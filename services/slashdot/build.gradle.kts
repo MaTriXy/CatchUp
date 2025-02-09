@@ -14,77 +14,38 @@
  * limitations under the License.
  */
 
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-
 plugins {
-  id("com.android.library")
-  kotlin("android")
-  kotlin("kapt")
+  alias(libs.plugins.foundry.base)
+  alias(libs.plugins.android.library)
+  alias(libs.plugins.kotlin.android)
+  alias(libs.plugins.kotlin.serialization)
 }
 
-apply {
-  from(rootProject.file("gradle/config-kotlin-sources.gradle"))
-}
+android { namespace = "catchup.service.slashdot" }
 
-android {
-  compileSdkVersion(deps.android.build.compileSdkVersion)
-
-  defaultConfig {
-    minSdkVersion(deps.android.build.minSdkVersion)
-    targetSdkVersion(deps.android.build.targetSdkVersion)
-    vectorDrawables.useSupportLibrary = true
-  }
-  compileOptions {
-    sourceCompatibility = JavaVersion.VERSION_1_8
-    targetCompatibility = JavaVersion.VERSION_1_8
-  }
-  lintOptions {
-    isCheckReleaseBuilds = false
-    isAbortOnError = false
-  }
-  libraryVariants.all {
-    generateBuildConfigProvider?.configure {
-      enabled = false
-    }
-  }
-}
-
-tasks.withType<KotlinCompile> {
-  kotlinOptions {
-    freeCompilerArgs = build.standardFreeKotlinCompilerArgs
-    jvmTarget = "1.8"
-  }
-}
-
-kapt {
-  correctErrorTypes = true
-  mapDiagnosticLocations = true
-
-  // Compiling with JDK 11+, but kapt doesn't forward source/target versions.
-  javacOptions {
-    option("-source", "8")
-    option("-target", "8")
-  }
+foundry {
+  features { dagger() }
+  android { features { resources("catchup_service_sd_") } }
 }
 
 dependencies {
-  kapt(project(":service-registry:service-registry-compiler"))
-  kapt(deps.crumb.compiler)
-  kapt(deps.dagger.apt.compiler)
-  kapt(deps.tikxml.apt)
+  api(libs.dagger.runtime)
+  api(libs.kotlin.datetime)
+  api(libs.kotlinx.serialization.core)
+  api(libs.okhttp.core)
+  api(libs.retrofit.core)
+  api(libs.xmlutil.serialization)
+  api(projects.libraries.appconfig)
+  api(projects.libraries.di)
+  api(projects.serviceApi)
 
-  implementation(project(":libraries:util"))
-  implementation(deps.okhttp.core)
-  implementation(deps.retrofit.core)
-  implementation(deps.retrofit.rxJava2)
-  implementation(deps.tikxml.annotation)
-  implementation(deps.tikxml.core)
-  implementation(deps.tikxml.retrofit)
+  implementation(libs.kotlin.datetime)
+  implementation(libs.okhttp.core)
+  implementation(libs.retrofit.kotlinxSerialization)
+  implementation(libs.tikxml.htmlEscape)
+  implementation(projects.libraries.retrofitconverters)
+  implementation(projects.libraries.util)
 
-  api(project(":service-api"))
-  api(deps.android.androidx.annotations)
-  api(deps.dagger.runtime)
-  api(deps.misc.lazythreeten)
-  api(deps.rx.java)
-  api(deps.tikxml.htmlEscape)
+  testImplementation(libs.test.junit)
+  testImplementation(libs.test.truth)
 }

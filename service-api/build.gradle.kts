@@ -13,69 +13,49 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-
 plugins {
-  id("com.android.library")
-  kotlin("android")
-  kotlin("kapt")
+  alias(libs.plugins.android.library)
+  alias(libs.plugins.kotlin.multiplatform)
+  alias(libs.plugins.foundry.base)
 }
 
-apply {
-  from(rootProject.file("gradle/config-kotlin-sources.gradle"))
-}
+kotlin {
+  // region KMP Targets
+  androidTarget()
+  jvm()
+  // endregion
 
-android {
-  compileSdkVersion(deps.android.build.compileSdkVersion)
+  applyDefaultHierarchyTemplate()
 
-  defaultConfig {
-    minSdkVersion(deps.android.build.minSdkVersion)
-    targetSdkVersion(deps.android.build.targetSdkVersion)
-  }
-  compileOptions {
-    sourceCompatibility = JavaVersion.VERSION_1_8
-    targetCompatibility = JavaVersion.VERSION_1_8
-  }
-  lintOptions {
-    isCheckReleaseBuilds = false
-    isAbortOnError = false
-  }
-  libraryVariants.all {
-    generateBuildConfigProvider?.configure {
-      enabled = false
+  sourceSets {
+    commonMain {
+      dependencies {
+        api(libs.androidx.annotations)
+        api(libs.anvil.annotations)
+        api(libs.compose.runtime)
+        api(libs.dagger.runtime)
+        api(libs.kotlin.datetime)
+        api(libs.kotlinx.immutable)
+        api(projects.libraries.di)
+
+        implementation(libs.androidx.annotations)
+        implementation(libs.kotlin.coroutinesAndroid)
+        implementation(libs.kotlin.datetime)
+        implementation(projects.serviceDb)
+      }
+    }
+    with(getByName("androidMain")) {
+      dependencies {
+        api(libs.androidx.compose.runtime)
+      }
     }
   }
 }
 
-tasks.withType<KotlinCompile> {
-  kotlinOptions {
-    freeCompilerArgs = build.standardFreeKotlinCompilerArgs
-    jvmTarget = "1.8"
+android { namespace = "catchup.service.api" }
+
+foundry {
+  features {
+    dagger()
   }
-}
-
-kapt {
-  correctErrorTypes = true
-  mapDiagnosticLocations = true
-}
-
-dependencies {
-  kapt(deps.android.androidx.room.apt)
-
-  implementation(deps.kotlin.coroutinesAndroid)
-  implementation(deps.kotlin.coroutinesRx)
-
-  api(project(":service-registry:service-registry-annotations"))
-  api(project(":libraries:retrofitconverters"))
-  api(deps.android.androidx.room.runtime)
-  api(deps.android.androidx.annotations)
-  api(deps.android.androidx.coreKtx)
-  api(deps.android.androidx.fragment)
-  api(deps.dagger.runtime)
-  api(deps.kotlin.coroutines)
-  api(deps.misc.lazythreeten)
-  api(deps.rx.java)
-
-  implementation(deps.okhttp.core)
 }

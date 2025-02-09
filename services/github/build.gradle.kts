@@ -14,93 +14,65 @@
  * limitations under the License.
  */
 
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-
 plugins {
-  id("com.android.library")
-  kotlin("android")
-  kotlin("kapt")
-  id("com.apollographql.android")
-}
-
-apply {
-  from(rootProject.file("gradle/config-kotlin-sources.gradle"))
+  alias(libs.plugins.foundry.base)
+  alias(libs.plugins.android.library)
+  alias(libs.plugins.kotlin.android)
+  alias(libs.plugins.apollo)
 }
 
 android {
-  compileSdkVersion(deps.android.build.compileSdkVersion)
-
   defaultConfig {
-    minSdkVersion(deps.android.build.minSdkVersion)
-    targetSdkVersion(deps.android.build.targetSdkVersion)
-    vectorDrawables.useSupportLibrary = true
     buildConfigField("String", "GITHUB_DEVELOPER_TOKEN",
         "\"${properties["catchup_github_developer_token"]}\"")
   }
-  compileOptions {
-    sourceCompatibility = JavaVersion.VERSION_1_8
-    targetCompatibility = JavaVersion.VERSION_1_8
+  buildFeatures {
+    buildConfig = true
   }
-  lintOptions {
-    isCheckReleaseBuilds = false
-    isAbortOnError = false
+  namespace = "catchup.service.github"
+}
+
+apollo {
+  service("github") {
+    mapScalar("DateTime", "kotlinx.datetime.Instant")
+    mapScalar("URI", "okhttp3.HttpUrl")
+    packageName.set("catchup.service.github")
+    schemaFiles.from(file("src/main/graphql/catchup/service/github/schema.json"))
   }
-  libraryVariants.all {
-    generateBuildConfigProvider?.configure {
-      // Can't enable until we have somewhere else for the token
-//      enabled = false
+}
+
+foundry {
+  features {
+    dagger()
+  }
+  android {
+    features {
+      resources("catchup_service_github_")
     }
   }
 }
 
-tasks.withType<KotlinCompile> {
-  kotlinOptions {
-    freeCompilerArgs = build.standardFreeKotlinCompilerArgs
-    jvmTarget = "1.8"
-  }
-}
-
-kapt {
-  correctErrorTypes = true
-  mapDiagnosticLocations = true
-
-  // Compiling with JDK 11+, but kapt doesn't forward source/target versions.
-  javacOptions {
-    option("-source", "8")
-    option("-target", "8")
-  }
-}
-
-apollo {
-  customTypeMapping.set(mapOf(
-      "DateTime" to "org.threeten.bp.Instant",
-      "URI" to "okhttp3.HttpUrl"
-  ))
-  setGenerateKotlinModels(true)
-}
-
 dependencies {
-  kapt(project(":service-registry:service-registry-compiler"))
-  kapt(deps.crumb.compiler)
-  kapt(deps.dagger.apt.compiler)
+  api(libs.apollo.api)
+  api(libs.apollo.runtime)
+  api(libs.dagger.runtime)
+  api(libs.kotlin.datetime)
+  api(libs.okhttp.core)
+  api(libs.retrofit.core)
+  api(projects.libraries.appconfig)
+  api(projects.libraries.di)
+  api(projects.libraries.gemoji)
+  api(projects.serviceApi)
 
-  compileOnly(deps.misc.javaxInject)
-
-  implementation(project(":libraries:gemoji"))
-  implementation(project(":libraries:retrofitconverters"))
-  implementation(project(":libraries:util"))
-  implementation(deps.misc.jsoup)
-  implementation(deps.retrofit.rxJava2)
-  implementation(deps.okhttp.core)
-
+  implementation(libs.apollo.httpcache)
   // Apollo
-  implementation(deps.apollo.runtime)
-  implementation(deps.apollo.rx2Support)
-  implementation(deps.apollo.androidSupport)
+  implementation(libs.apollo.runtime)
+  implementation(libs.kotlin.datetime)
+  implementation(libs.misc.jsoup)
+  implementation(libs.misc.timber)
+  implementation(libs.okhttp.core)
+  implementation(projects.libraries.retrofitconverters)
+  implementation(projects.libraries.util)
 
-  api(project(":service-api"))
-  api(deps.android.androidx.annotations)
-  api(deps.dagger.runtime)
-  api(deps.misc.lazythreeten)
-  api(deps.rx.java)
+  compileOnly(libs.misc.javaxInject)
 }

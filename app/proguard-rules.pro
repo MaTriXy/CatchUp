@@ -1,53 +1,12 @@
 # This is a configuration file for ProGuard.
 # http://proguard.sourceforge.net/index.html#manual/usage.html
--dontusemixedcaseclassnames
--dontskipnonpubliclibraryclasses
--verbose
--dontpreverify
-
-# Optimize all the things (other than those listed)
--optimizations !field/*
-
 -allowaccessmodification
--repackageclasses ''
-
-# Note that you cannot just include these flags in your own
-# configuration file; if you are including this file, optimization
-# will be turned off. You'll need to either edit this file, or
-# duplicate the contents of this file and remove the include of this
-# file from your project's proguard.config path property.
-
--keep public class * extends android.app.Activity
--keep public class * extends android.app.Application
--keep public class * extends android.app.Service
--keep public class * extends android.content.BroadcastReceiver
--keep public class * extends android.content.ContentProvider
--keep public class * extends android.app.backup.BackupAgent
--keep public class * extends android.preference.Preference
--keep public class * extends android.support.v4.app.Fragment
--keep public class * extends androidx.fragment.app.Fragment
--keep public class * extends android.app.Fragment
--keep public class com.android.vending.licensing.ILicensingService
+-dontusemixedcaseclassnames
+-verbose
 
 # For native methods, see http://proguard.sourceforge.net/manual/examples.html#native
 -keepclasseswithmembernames class * {
     native <methods>;
-}
-
--keep public class * extends android.view.View {
-    public <init>(android.content.Context, android.util.AttributeSet);
-}
-
--keepclasseswithmembers class * {
-    public <init>(android.content.Context, android.util.AttributeSet);
-}
-
--keepclasseswithmembers class * {
-    public <init>(android.content.Context, android.util.AttributeSet, int);
-}
-
--keepclassmembers class * extends android.app.Activity {
-   public void *(android.view.View);
 }
 
 # For enumeration classes, see http://proguard.sourceforge.net/manual/examples.html#enumerations
@@ -56,33 +15,22 @@
     public static ** valueOf(java.lang.String);
 }
 
--keep class * implements android.os.Parcelable {
-  public static final android.os.Parcelable$Creator *;
+-keepclassmembers class * implements android.os.Parcelable {
+  public static final android.os.Parcelable$Creator CREATOR;
+}
+
+# Assume isInEditMode() always return false in release builds so they can be pruned
+-assumevalues public class * extends android.view.View {
+  boolean isInEditMode() return false;
 }
 
 -keepclassmembers class **.R$* {
     public static <fields>;
 }
 
--keep class com.google.android.material.theme.MaterialComponentsViewInflater
-
--keepattributes *Annotation*
--renamesourcefileattribute SourceFile
--keepattributes SourceFile,LineNumberTable,Signature,JavascriptInterface
-
-# OkHttp
--dontwarn okhttp3.**
--keepnames class okhttp3.internal.publicsuffix.PublicSuffixDatabase
+-keepattributes Signature,InnerClasses,EnclosingMethod,*Annotation*
 
 # Retrofit
-# Platform calls Class.forName on types which do not exist on Android to determine platform.
--dontnote retrofit2.Platform
-# Platform used when running on Java 8 VMs. Will not be used at runtime.
--dontwarn retrofit2.Platform$Java8
-# Retain generic type information for use by reflection by converters and adapters.
--keepattributes Signature, InnerClasses
-# Retain declared checked exceptions for use by a Proxy instance.
--keepattributes Exceptions
 # This is to keep parameters on retrofit2.http-annotated methods while still allowing removal of unused ones
 -keep,allowobfuscation @interface retrofit2.http.**
 -keepclassmembers,allowshrinking,allowobfuscation interface * {
@@ -98,30 +46,8 @@
 # Javax Extras
 -dontwarn com.uber.javaxextras.**
 
-# RxJava 1
--dontwarn sun.misc.**
--keepclassmembers class rx.internal.util.unsafe.*ArrayQueue*Field* {
-   long producerIndex;
-   long consumerIndex;
-}
--keepclassmembers class rx.internal.util.unsafe.BaseLinkedQueueProducerNodeRef {
-    rx.internal.util.atomic.LinkedQueueNode producerNode;
-}
--keepclassmembers class rx.internal.util.unsafe.BaseLinkedQueueConsumerNodeRef {
-    rx.internal.util.atomic.LinkedQueueNode consumerNode;
-}
--dontnote rx.internal.util.PlatformDependent
-
-# Glide
--keep public class * implements com.bumptech.glide.module.GlideModule
--keep public class * extends com.bumptech.glide.module.AppGlideModule
--keep public enum com.bumptech.glide.load.ImageHeaderParser$** {
-  **[] $VALUES;
-  public *;
-}
-
-# Fonts have a messed up proguard config
--keep class android.support.v4.provider.** { *; }
+# Some unsafe classfactory stuff
+-keep class sun.misc.Unsafe { *; }
 
 # CheckerFramework/EP
 -dontwarn org.checkerframework.**
@@ -141,9 +67,106 @@
 #    <fields>;
 #}
 
-# TODO should be able to remove in AGP 3.7 & Coroutines 1.3.0 stable
-# Ensure the custom, fast service loader implementation is removed.
--assumevalues class kotlinx.coroutines.internal.MainDispatcherLoader {
-  boolean FAST_SERVICE_LOADER_ENABLED return false;
+# Ensure the custom, fast service loader implementation is removed. R8 will fold these for us
+-assumenosideeffects class kotlinx.coroutines.internal.MainDispatcherLoader {
+    boolean FAST_SERVICE_LOADER_ENABLED return false;
+}
+-assumenosideeffects class kotlinx.coroutines.internal.FastServiceLoader {
+    boolean ANDROID_DETECTED return true;
 }
 -checkdiscard class kotlinx.coroutines.internal.FastServiceLoader
+
+# In release builds, isDebug() is always false
+-assumevalues class * implements catchup.appconfig.AppConfig {
+  boolean isDebug(...) return false;
+}
+# AppConfig#sdkInt is always 28+
+-assumevalues public class catchup.appconfig.AppConfig {
+  int getSdkInt(...) return 28..2147483647;
+}
+
+# Check that qualifier annotations have been discarded.
+# TODO this no longer works due to a firebase update and their reflection use
+#-checkdiscard @javax.inject.Qualifier class *
+
+# Coroutines debug agent bits
+-dontwarn java.lang.instrument.ClassFileTransformer
+-dontwarn sun.misc.SignalHandler
+
+# From OkHttp but gated appropriately
+-dontwarn org.conscrypt.ConscryptHostnameVerifier
+
+# ZoneRulesProvider _does_ exist!
+-dontwarn java.time.zone.ZoneRulesProvider
+
+-dontwarn com.caverock.androidsvg.**
+-dontwarn kotlinx.serialization.**
+-dontwarn pl.droidsonroids.gif.**
+
+# Copied from Retrofit's HEAD
+# Retrofit does reflection on generic parameters. InnerClasses is required to use Signature and
+# EnclosingMethod is required to use InnerClasses.
+-keepattributes Signature, InnerClasses, EnclosingMethod
+
+# Retrofit does reflection on method and parameter annotations.
+-keepattributes RuntimeVisibleAnnotations, RuntimeVisibleParameterAnnotations
+
+# Keep annotation default values (e.g., retrofit2.http.Field.encoded).
+-keepattributes AnnotationDefault
+
+# Retain service method parameters when optimizing.
+-keepclassmembers,allowshrinking,allowobfuscation interface * {
+    @retrofit2.http.* <methods>;
+}
+
+# Ignore annotation used for build tooling.
+-dontwarn org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement
+
+# Ignore JSR 305 annotations for embedding nullability information.
+-dontwarn javax.annotation.**
+
+# Guarded by a NoClassDefFoundError try/catch and only used when on the classpath.
+-dontwarn kotlin.Unit
+
+# Top-level functions that can only be used by Kotlin.
+-dontwarn retrofit2.KotlinExtensions
+-dontwarn retrofit2.KotlinExtensions$*
+
+# With R8 full mode, it sees no subtypes of Retrofit interfaces since they are created with a Proxy
+# and replaces all potential values with null. Explicitly keeping the interfaces prevents this.
+-if interface * { @retrofit2.http.* <methods>; }
+-keep,allowobfuscation interface <1>
+
+# Keep inherited services.
+-if interface * { @retrofit2.http.* <methods>; }
+-keep,allowobfuscation interface * extends <1>
+
+# Keep generic signature of Call, Response (R8 full mode strips signatures from non-kept items).
+-keep,allowobfuscation,allowshrinking interface retrofit2.Call
+-keep,allowobfuscation,allowshrinking class retrofit2.Response
+
+# With R8 full mode generic signatures are stripped for classes that are not
+# kept. Suspend functions are wrapped in continuations where the type argument
+# is used.
+-keep,allowobfuscation,allowshrinking class kotlin.coroutines.Continuation
+
+# Temporary until Circuit's navigation animation updates
+-dontwarn androidx.compose.animation.AnimatedContentScope
+
+# Missing rules
+-dontwarn androidx.window.extensions.area.ExtensionWindowAreaPresentation
+-dontwarn androidx.window.extensions.WindowExtensions
+-dontwarn androidx.window.extensions.WindowExtensionsProvider
+-dontwarn androidx.window.extensions.layout.DisplayFeature
+-dontwarn androidx.window.extensions.layout.FoldingFeature
+-dontwarn androidx.window.extensions.layout.WindowLayoutComponent
+-dontwarn androidx.window.extensions.layout.WindowLayoutInfo
+-dontwarn androidx.window.sidecar.SidecarDeviceState
+-dontwarn androidx.window.sidecar.SidecarDisplayFeature
+-dontwarn androidx.window.sidecar.SidecarInterface$SidecarCallback
+-dontwarn androidx.window.sidecar.SidecarInterface
+-dontwarn androidx.window.sidecar.SidecarProvider
+-dontwarn androidx.window.sidecar.SidecarWindowLayoutInfo
+-dontwarn androidx.window.extensions.core.util.function.Consumer
+-dontwarn androidx.window.extensions.core.util.function.Function
+-dontwarn androidx.window.extensions.core.util.function.Predicate

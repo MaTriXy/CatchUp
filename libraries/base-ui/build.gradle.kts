@@ -14,75 +14,48 @@
  * limitations under the License.
  */
 
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-
 plugins {
-  id("com.android.library")
-  kotlin("android")
-  kotlin("kapt")
-}
-
-tasks.withType<KotlinCompile> {
-  kotlinOptions {
-    freeCompilerArgs = build.standardFreeKotlinCompilerArgs
-    jvmTarget = "1.8"
-  }
+  alias(libs.plugins.foundry.base)
+  alias(libs.plugins.android.library)
+  alias(libs.plugins.kotlin.android)
 }
 
 android {
-  compileSdkVersion(deps.android.build.compileSdkVersion)
+  namespace = "catchup.ui.core"
+}
 
-  defaultConfig {
-    minSdkVersion(deps.android.build.minSdkVersion)
-    targetSdkVersion(deps.android.build.targetSdkVersion)
+foundry {
+  features {
+    compose()
+    dagger()
   }
-  compileOptions {
-    sourceCompatibility = JavaVersion.VERSION_1_8
-    targetCompatibility = JavaVersion.VERSION_1_8
-  }
-  sourceSets {
-    findByName("main")?.java?.srcDirs("src/main/kotlin")
-    findByName("debug")?.java?.srcDirs("src/debug/kotlin")
-    findByName("release")?.java?.srcDirs("src/release/kotlin")
-    findByName("test")?.java?.srcDirs("src/test/kotlin")
-  }
-  libraryVariants.all {
-    generateBuildConfigProvider?.configure {
-      enabled = false
+  android {
+    features {
+      resources("catchup_baseui_")
     }
   }
 }
 
-kapt {
-  correctErrorTypes = true
-  mapDiagnosticLocations = true
-
-  // Compiling with JDK 11+, but kapt doesn't forward source/target versions.
-  javacOptions {
-    option("-source", "8")
-    option("-target", "8")
-  }
-}
-
 dependencies {
-  kapt(deps.dagger.apt.compiler)
-  kapt(deps.dagger.android.apt.processor)
-  compileOnly(deps.misc.javaxInject)
-  api(project(":libraries:util"))
-  api(deps.dagger.android.runtime)
-  api(deps.dagger.android.support)
-  api(deps.kotlin.coroutines)
-  api(deps.kotlin.stdlib.jdk7)
-  api(deps.autoDispose.core)
-  api(deps.autoDispose.android)
-  api(deps.autoDispose.lifecycle)
-  api(deps.autoDispose.androidArch)
-  api(deps.rx.java)
-  implementation(deps.rx.relay)
-  api(deps.android.androidx.annotations)
-  api(deps.android.androidx.appCompat)
-  api(deps.android.androidx.core)
-  api(deps.android.androidx.design)
-  api(deps.android.androidx.palette)
-  api(deps.android.androidx.paletteKtx)
+  api(libs.androidx.annotations)
+  api(libs.androidx.compose.runtime)
+  api(libs.androidx.compose.ui)
+  api(libs.androidx.palette)
+  api(libs.androidx.paletteKtx)
+  api(libs.circuit.runtime)
+  api(libs.kotlin.coroutines)
+  api(projects.libraries.di)
+
+  implementation(libs.androidx.activity)
+  implementation(libs.androidx.activity.compose)
+  implementation(libs.androidx.annotations)
+  implementation(libs.androidx.compose.foundation)
+  implementation(libs.androidx.compose.material.material3)
+  implementation(libs.androidx.compose.materialIcons)
+  implementation(libs.androidx.compose.uiTooling)
+  implementation(libs.androidx.core)
+  implementation(libs.haze)
+  implementation(libs.kotlin.coroutines)
+  implementation(projects.libraries.appconfig)
+  implementation(projects.libraries.util)
 }

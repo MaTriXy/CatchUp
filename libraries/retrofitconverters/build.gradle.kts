@@ -13,26 +13,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-
 plugins {
-  kotlin("jvm")
+  alias(libs.plugins.kotlin.multiplatform)
+  alias(libs.plugins.foundry.base)
 }
 
-tasks.withType<KotlinCompile> {
-  kotlinOptions {
-    freeCompilerArgs = build.standardFreeKotlinCompilerArgs
-    jvmTarget = "1.8"
+kotlin {
+  // region KMP Targets
+  jvm()
+  // endregion
+
+  applyDefaultHierarchyTemplate()
+
+  sourceSets {
+    with(getByName("jvmMain")) {
+      dependencies {
+        api(libs.dagger.runtime)
+        api(libs.okhttp.core)
+        api(libs.retrofit.core)
+
+        implementation(libs.okhttp.core)
+      }
+    }
   }
-}
-
-dependencies {
-  api(deps.dagger.runtime)
-  implementation(deps.retrofit.core)
-  implementation(deps.okhttp.core)
-  implementation(deps.misc.jsoup)
-  implementation(deps.android.androidx.annotations)
-  implementation(deps.kotlin.stdlib.core)
-  implementation(deps.rx.java)
 }

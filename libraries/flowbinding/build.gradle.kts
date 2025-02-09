@@ -14,53 +14,17 @@
  * limitations under the License.
  */
 
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-
 plugins {
-  id("com.android.library")
-  kotlin("android")
-}
-
-tasks.withType<KotlinCompile> {
-  kotlinOptions {
-    freeCompilerArgs = build.standardFreeKotlinCompilerArgs
-    jvmTarget = "1.8"
-  }
+  alias(libs.plugins.android.library)
+  alias(libs.plugins.kotlin.android)
+  alias(libs.plugins.foundry.base)
 }
 
 android {
-  compileSdkVersion(deps.android.build.compileSdkVersion)
-
-  defaultConfig {
-    minSdkVersion(deps.android.build.minSdkVersion)
-    targetSdkVersion(deps.android.build.targetSdkVersion)
-  }
-  compileOptions {
-    sourceCompatibility = JavaVersion.VERSION_1_8
-    targetCompatibility = JavaVersion.VERSION_1_8
-  }
-  sourceSets {
-    findByName("main")?.java?.srcDirs("src/main/kotlin")
-    findByName("debug")?.java?.srcDirs("src/debug/kotlin")
-    findByName("release")?.java?.srcDirs("src/release/kotlin")
-    findByName("test")?.java?.srcDirs("src/test/kotlin")
-  }
-  libraryVariants.all {
-    generateBuildConfigProvider?.configure {
-      enabled = false
-    }
-  }
+  namespace = "catchup.flowbinding"
 }
 
 dependencies {
-  api(deps.kotlin.coroutines)
-  api(deps.kotlin.stdlib.jdk7)
-  api(deps.corbind.core)
-  api(deps.corbind.androidx.core)
-  api(deps.corbind.material)
-
-  api(deps.android.androidx.annotations)
-  api(deps.android.androidx.appCompat)
-  api(deps.android.androidx.core)
-  api(deps.android.androidx.design)
+  api(libs.kotlin.coroutines)
+  implementation(projects.libraries.kotlinutil)
 }

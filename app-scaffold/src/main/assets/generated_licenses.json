@@ -1,0 +1,138 @@
+[
+  {
+    "owner": "aakira",
+    "name": "Napier"
+  },
+  {
+    "owner": "airbnb",
+    "name": "lottie-android"
+  },
+  {
+    "owner": "alorma",
+    "name": "Compose-Settings"
+  },
+  {
+    "owner": "atlassian",
+    "name": "commonmark-java"
+  },
+  {
+    "owner": "bugsnag",
+    "name": "bugsnag-android"
+  },
+  {
+    "owner": "cashapp",
+    "name": "molecule"
+  },
+  {
+    "owner": "cashapp",
+    "name": "sqldelight"
+  },
+  {
+    "owner": "coil-kt",
+    "name": "coil"
+  },
+  {
+    "owner": "firebase",
+    "name": "firebase-android-sdk"
+  },
+  {
+    "owner": "google",
+    "name": "accompanist"
+  },
+  {
+    "owner": "google",
+    "name": "dagger"
+  },
+  {
+    "owner": "google",
+    "name": "error-prone"
+  },
+  {
+    "owner": "google",
+    "name": "guava"
+  },
+  {
+    "owner": "JakeWharton",
+    "name": "ProcessPhoenix"
+  },
+  {
+    "owner": "JakeWharton",
+    "name": "shimo"
+  },
+  {
+    "owner": "JakeWharton",
+    "name": "timber"
+  },
+  {
+    "owner": "JetBrains",
+    "name": "compose-jb"
+  },
+  {
+    "owner": "JetBrains",
+    "name": "java-annotations"
+  },
+  {
+    "owner": "JetBrains",
+    "name": "kotlin"
+  },
+  {
+    "owner": "jhy",
+    "name": "jsoup"
+  },
+  {
+    "owner": "KeepSafe",
+    "name": "TapTargetView"
+  },
+  {
+    "owner": "Kotlin",
+    "name": "kotlinx.coroutines"
+  },
+  {
+    "owner": "Kotlin",
+    "name": "kotlinx.serialization"
+  },
+  {
+    "owner": "material-components",
+    "name": "material-components-android"
+  },
+  {
+    "owner": "pdvrieze",
+    "name": "xmlutil"
+  },
+  {
+    "owner": "saket",
+    "name": "telephoto"
+  },
+  {
+    "owner": "serj-lotutovici",
+    "name": "moshi-lazy-adapters"
+  },
+  {
+    "owner": "slackhq",
+    "name": "circuit"
+  },
+  {
+    "owner": "square",
+    "name": "curtains"
+  },
+  {
+    "owner": "square",
+    "name": "leakcanary"
+  },
+  {
+    "owner": "square",
+    "name": "okhttp"
+  },
+  {
+    "owner": "square",
+    "name": "retrofit"
+  },
+  {
+    "owner": "Tickaroo",
+    "name": "tikxml"
+  },
+  {
+    "owner": "unbescape",
+    "name": "unbescape"
+  }
+]

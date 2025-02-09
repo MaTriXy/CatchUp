@@ -13,75 +13,74 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-import deps.versions
+plugins {
+  alias(libs.plugins.kotlin.jvm) apply false
+  alias(libs.plugins.kotlin.android) apply false
+  alias(libs.plugins.kotlin.multiplatform) apply false
+  alias(libs.plugins.kotlin.kapt) apply false
+  alias(libs.plugins.kotlin.parcelize) apply false
+  alias(libs.plugins.android.application) apply false
+  alias(libs.plugins.android.library) apply false
+  alias(libs.plugins.android.test) apply false
+  alias(libs.plugins.foundry.root)
+  alias(libs.plugins.foundry.base)
+  alias(libs.plugins.spotless) apply false
+  alias(libs.plugins.doctor) apply false
+  alias(libs.plugins.ksp) apply false
+  alias(libs.plugins.anvil) apply false
+  alias(libs.plugins.cacheFixPlugin) apply false
+  //  alias(libs.plugins.detekt) apply false
+  alias(libs.plugins.kotlin.noarg) apply false
+  alias(libs.plugins.moshix) apply false
+  alias(libs.plugins.retry) apply false
+  alias(libs.plugins.bugsnag) apply false
+  alias(libs.plugins.sortDependencies) apply false
+  alias(libs.plugins.sqldelight) apply false
+  alias(libs.plugins.dependencyAnalysis) apply false
+  alias(libs.plugins.kotlin.plugin.compose) apply false
+}
 
 buildscript {
-  repositories {
-    google()
-    mavenCentral()
-    jcenter()
-    maven { url = uri(deps.build.repositories.kotlineap) }
-    maven { url = uri(deps.build.repositories.kotlinx) }
-    maven { url = uri(deps.build.repositories.plugins) }
-    maven { url = uri(deps.build.repositories.snapshots) }
-  }
-
   dependencies {
-    classpath(deps.android.gradlePlugin)
-    classpath(deps.kotlin.gradlePlugin)
-    classpath(deps.kotlin.noArgGradlePlugin)
-    classpath(deps.android.firebase.gradlePlugin)
-    classpath(deps.build.gradlePlugins.bugsnag)
-    classpath(deps.apollo.gradlePlugin)
-    classpath(deps.build.gradlePlugins.playPublisher)
-    classpath(deps.build.gradlePlugins.spotless)
+    // Necessary for sqldelight's DB migration verification task
+    classpath(libs.sqlite.xerial)
   }
 }
 
-plugins {
-  id("com.gradle.build-scan") version "2.4.1"
-  id("com.github.ben-manes.versions") version "0.24.0"
+val useProjectIsolation =
+  System.getProperty("org.gradle.unsafe.isolated-projects", "false").toBoolean()
+
+if (!useProjectIsolation) {
+  apply(plugin = libs.plugins.doctor.get().pluginId)
+  apply(plugin = libs.plugins.spotless.get().pluginId)
 }
 
-buildScan {
-  termsOfServiceAgree = "yes"
-  termsOfServiceUrl = "https://gradle.com/terms-of-service"
+skippy {
+  mergeOutputs = true
+  global {
+    applyDefaults()
+    // Glob patterns of files to include in computing
+    includePatterns.addAll("**/schemas/**", "app/proguard-rules.pro", "**/src/**/graphql/**")
+    // Glob patterns of files that, if changed, should result in not skipping anything in the build
+    neverSkipPatterns.addAll(
+      ".github/workflows/**",
+      "spotless/**",
+      "scripts/github/schema.json",
+      "config/lint/lint.xml",
+    )
+  }
 }
 
-allprojects {
-
-  repositories {
-    google()
-    mavenCentral()
-    jcenter()
-    maven { url = uri(deps.build.repositories.kotlineap) }
-    maven { url = uri(deps.build.repositories.kotlinx) }
-    maven { url = uri(deps.build.repositories.jitpack) }
-    maven { url = uri(deps.build.repositories.snapshots) }
-  }
-
-  configurations.all {
-    resolutionStrategy.eachDependency {
-      when {
-        requested.name.startsWith("kotlin-stdlib") -> {
-          useTarget(
-              "${requested.group}:${requested.name.replace("jre", "jdk")}:${requested.version}")
-        }
-        else -> when (requested.group) {
-          "com.android.support" -> {
-            if ("multidex" !in requested.name) {
-              useVersion(versions.legacySupport)
-            }
-          }
-          "org.jetbrains.kotlin" -> useVersion(versions.kotlin)
-          "com.google.dagger" -> useVersion(versions.dagger)
-        }
-      }
-    }
-  }
-
-  apply {
-    from(rootProject.file("gradle/spotless-config.gradle"))
-  }
+if (!useProjectIsolation) {
+  // https://github.com/autonomousapps/dependency-analysis-gradle-plugin/issues/1111
+  //  apply(plugin = libs.plugins.dependencyAnalysis.get().pluginId)
+  //  configure<DependencyAnalysisExtension> {
+  //    structure {
+  //      bundle("compose-ui") {
+  //        primary("androidx.compose.ui:ui")
+  //        includeGroup("androidx.compose.ui")
+  //        // TODO exclude ui-tooling
+  //      }
+  //    }
+  //  }
 }

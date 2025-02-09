@@ -1,17 +1,16 @@
 plugins {
   `java-library`
-}
-
-java {
-  sourceCompatibility = JavaVersion.VERSION_1_8
-  targetCompatibility = JavaVersion.VERSION_1_8
+  alias(libs.plugins.foundry.base)
+  alias(libs.plugins.ksp)
 }
 
 dependencies {
-  annotationProcessor(deps.auto.service)
-  compileOnly(deps.auto.service)
+  ksp(libs.autoService.ksp)
 
-  implementation(deps.dagger.runtime)
-  implementation(deps.dagger.spi)
-  implementation(deps.build.javapoet)
+  implementation(libs.dagger.spi)
+  implementation(libs.errorProneAnnotations)
+  implementation(libs.javapoet)
+  implementation(libs.misc.debug.guava)
+
+  compileOnly(libs.autoService.annotations)
 }

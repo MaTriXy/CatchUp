@@ -14,73 +14,40 @@
  * limitations under the License.
  */
 
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-
 plugins {
-  id("com.android.library")
-  kotlin("android")
-  kotlin("kapt")
-}
-
-apply {
-  from(rootProject.file("gradle/config-kotlin-sources.gradle"))
+  alias(libs.plugins.foundry.base)
+  alias(libs.plugins.android.library)
+  alias(libs.plugins.kotlin.android)
 }
 
 android {
-  compileSdkVersion(deps.android.build.compileSdkVersion)
-
-  defaultConfig {
-    minSdkVersion(deps.android.build.minSdkVersion)
-    targetSdkVersion(deps.android.build.targetSdkVersion)
-  }
-  compileOptions {
-    sourceCompatibility = JavaVersion.VERSION_1_8
-    targetCompatibility = JavaVersion.VERSION_1_8
-  }
-  lintOptions {
-    isCheckReleaseBuilds = false
-    isAbortOnError = false
-  }
-  libraryVariants.all {
-    generateBuildConfigProvider?.configure {
-      enabled = false
-    }
-  }
+  namespace = "catchup.gemoji"
 }
 
-tasks.withType<KotlinCompile> {
-  kotlinOptions {
-    freeCompilerArgs = build.standardFreeKotlinCompilerArgs
-    jvmTarget = "1.8"
-  }
-}
-
-kapt {
-  correctErrorTypes = true
-  mapDiagnosticLocations = true
-  arguments {
-    arg("room.schemaLocation", "$projectDir/schemas")
-    arg("room.incremental", "true")
-  }
-
-  // Compiling with JDK 11+, but kapt doesn't forward source/target versions.
-  javacOptions {
-    option("-source", "8")
-    option("-target", "8")
+foundry {
+  features {
+    dagger()
   }
 }
 
 dependencies {
-  implementation(project(":libraries:util"))
+  api(libs.dagger.runtime)
+  api(projects.libraries.di)
+  api(projects.libraries.gemoji.db)
 
-  kapt(deps.android.androidx.room.apt)
-  kapt(deps.dagger.apt.compiler)
+  implementation(libs.androidx.annotations)
+  implementation(libs.androidx.sqlite)
+  implementation(libs.androidx.sqlite.framework)
+  implementation(libs.kotlin.coroutines)
+  implementation(libs.misc.timber)
+  implementation(libs.sqldelight.coroutines)
+  implementation(libs.sqldelight.driver.android)
+  implementation(libs.sqldelight.runtime)
+  implementation(projects.libraries.util)
 
-  api(deps.android.androidx.room.runtime)
-  api(deps.dagger.runtime)
-  api(deps.kotlin.stdlib.jdk7)
-  api(deps.moshi.core)
+  compileOnly(libs.misc.jsr250)
 
-  testImplementation(deps.test.junit)
-  testImplementation(deps.test.truth)
+  testImplementation(libs.kotlin.coroutines.test)
+  testImplementation(libs.test.junit)
+  testImplementation(libs.test.truth)
 }
